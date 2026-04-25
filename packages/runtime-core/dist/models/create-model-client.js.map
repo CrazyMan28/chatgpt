@@ -1,0 +1,1 @@
+{"version":3,"file":"create-model-client.js","sourceRoot":"","sources":["../../src/models/create-model-client.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,qBAAqB,EAAE,MAAM,kCAAkC,CAAC;AAEzE,MAAM,UAAU,iBAAiB,CAAC,MAAmB;IACnD,OAAO,qBAAqB,CAAC,MAAM,CAAC,QAAQ,CAAC,CAAC,YAAY,CAAC,MAAM,CAAC,CAAC;AACrE,CAAC"}

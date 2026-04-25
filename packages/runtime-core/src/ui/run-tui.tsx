@@ -1,0 +1,131 @@
+import { render } from "ink";
+
+import type { FleetManager } from "../fleet/fleet-manager.js";
+import type { GoalStore } from "../goals/goal-store.js";
+import type { McpManager } from "../mcp/mcp-manager.js";
+import type { ApprovalManager } from "../platform/approval-manager.js";
+import type {
+  ExecutionContextController
+} from "../platform/execution-context.js";
+import type { ProjectRecord } from "../platform/types.js";
+import type { ModelRuntimeManager } from "../providers/model-runtime.js";
+import type { MemoryStore } from "../storage/memory-store.js";
+import type { ProjectRegistryStore } from "../storage/project-registry-store.js";
+import type { SessionRegistryStore } from "../storage/session-registry-store.js";
+import type { SessionRecord, SessionStore } from "../storage/session-store.js";
+import type { BackgroundTaskRunner } from "../tasks/background-task-runner.js";
+import type { LoadedToolRegistry } from "../tools/load-tool-registry.js";
+import type { TimelineStore } from "../storage/timeline-store.js";
+import type { WatcherStore } from "../storage/watcher-store.js";
+import { App } from "./app.js";
+
+export interface RunTuiOptions {
+  approvalManager: ApprovalManager;
+  executionContextController: ExecutionContextController;
+  fleetManager?: FleetManager;
+  goalStore?: GoalStore;
+  initialSession: SessionRecord;
+  memoryStore: MemoryStore;
+  mcpManager: McpManager;
+  modelRuntime: ModelRuntimeManager;
+  projectRecord: ProjectRecord;
+  projectRegistryStore: ProjectRegistryStore;
+  remoteManager?: {
+    add(agent: {
+      capabilities: string[];
+      connectionType: "ssh" | "local" | "container" | "subprocess";
+      host: string;
+      id: string;
+      name: string;
+      port?: number;
+      role: "general" | "frontend" | "backend" | "tester" | "devops" | "docs" | "blender";
+      status: "idle" | "running" | "waiting" | "degraded" | "offline";
+      username?: string;
+      workingDirectory?: string;
+    }): Promise<unknown>;
+    connect(id: string): Promise<{ status: string }>;
+    disconnect(id: string): Promise<{ status: string }>;
+    get(id: string): Promise<unknown>;
+    list(): Promise<
+      readonly {
+        currentTask?: string;
+        host: string;
+        id: string;
+        name: string;
+        role: string;
+        status: string;
+      }[]
+    >;
+    remove(id: string): Promise<boolean>;
+    runCommand(
+      id: string,
+      command: string,
+      args?: string[]
+    ): Promise<{
+      code: number | null;
+      stderr: string;
+      stdout: string;
+    }>;
+    testConnection(id: string): Promise<{ ok: boolean; output: string }>;
+  };
+  sessionRegistryStore: SessionRegistryStore;
+  sessionStore: SessionStore;
+  taskRunner: BackgroundTaskRunner;
+  toolRegistry: LoadedToolRegistry;
+  timelineStore?: TimelineStore;
+  watcherStore?: WatcherStore;
+  workspaceRoot: string;
+}
+
+export async function runTui({
+  approvalManager,
+  executionContextController,
+  fleetManager,
+  goalStore,
+  initialSession,
+  memoryStore,
+  mcpManager,
+  modelRuntime,
+  projectRecord,
+  projectRegistryStore,
+  remoteManager,
+  sessionRegistryStore,
+  sessionStore,
+  taskRunner,
+  toolRegistry,
+  timelineStore,
+  watcherStore,
+  workspaceRoot
+}: RunTuiOptions): Promise<void> {
+  const instance = render(
+    <App
+      approvalManager={approvalManager}
+      executionContextController={executionContextController}
+      fleetManager={fleetManager}
+      goalStore={goalStore}
+      initialSession={initialSession}
+      memoryStore={memoryStore}
+      mcpManager={mcpManager}
+      modelRuntime={modelRuntime}
+      projectRecord={projectRecord}
+      projectRegistryStore={projectRegistryStore}
+      remoteManager={remoteManager}
+      sessionRegistryStore={sessionRegistryStore}
+      sessionStore={sessionStore}
+      taskRunner={taskRunner}
+      toolRegistry={toolRegistry}
+      timelineStore={timelineStore}
+      watcherStore={watcherStore}
+      workspaceRoot={workspaceRoot}
+    />,
+    {
+      alternateScreen: Boolean(process.stdout.isTTY),
+      concurrent: true,
+      incrementalRendering: true,
+      interactive: Boolean(process.stdout.isTTY),
+      patchConsole: true
+    }
+  );
+
+  await instance.waitUntilExit();
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@chatgpt-code/orchestrator",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "@chatgpt-code/client-sdk": "0.2.0",
+    "@chatgpt-code/mcp-platform": "0.2.0",
+    "@chatgpt-code/runtime-core": "0.2.0",
+    "@chatgpt-code/storage-sqlite": "0.2.0",
+    "@chatgpt-code/worker-local": "0.2.0",
+    "@chatgpt-code/worker-remote": "0.2.0",
+    "ws": "^8.18.1"
+  }
+}

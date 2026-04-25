@@ -1,0 +1,1 @@
+{"version":3,"file":"app-config-schema.js","sourceRoot":"","sources":["../../src/config/app-config-schema.ts"],"names":[],"mappings":"AA6BA,MAAM,CAAC,MAAM,2BAA2B,GAAsB;IAC5D,OAAO,EAAE,MAAM;IACf,aAAa,EAAE,IAAI;IACnB,GAAG,EAAE,KAAK;CACX,CAAC;AAEF,MAAM,UAAU,sBAAsB,CAAC,MAAqB;IAC1D,OAAO,GAAG,IAAI,CAAC,SAAS,CAAC,MAAM,EAAE,IAAI,EAAE,CAAC,CAAC,IAAI,CAAC;AAChD,CAAC"}

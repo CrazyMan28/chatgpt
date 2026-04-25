@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "ChatGPT Code Mobile",
+    "slug": "chatgpt-code-mobile",
+    "scheme": "chatgptcode",
+    "version": "0.3.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "android": {
+      "package": "dev.chatgptcode.mobile"
+    }
+  }
+}

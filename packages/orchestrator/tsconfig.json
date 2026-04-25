@@ -1,0 +1,31 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../runtime-core"
+    },
+    {
+      "path": "../storage-sqlite"
+    },
+    {
+      "path": "../mcp-platform"
+    },
+    {
+      "path": "../worker-local"
+    },
+    {
+      "path": "../worker-remote"
+    },
+    {
+      "path": "../client-sdk"
+    }
+  ]
+}

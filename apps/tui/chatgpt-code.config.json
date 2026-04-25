@@ -1,0 +1,46 @@
+{
+  "defaults": {
+    "timeout": 30000,
+    "restartOnFail": true,
+    "log": false
+  },
+  "mcpServers": {
+    "test": {
+      "enabled": true,
+      "headers": {},
+      "type": "local",
+      "transport": "stdio",
+      "command": "/home/kihi2024/.local/bin/uv",
+      "args": [
+        "--directory",
+        "/home/kihi2024/Downloads/mcp_project/mcp-hand-desktop",
+        "run",
+        "mcp-hand-desktop"
+      ],
+      "cwd": "/home/kihi2024/Downloads/mcp_project/mcp-hand-desktop",
+      "env": {
+        "DISPLAY": ":0",
+        "WAYLAND_DISPLAY": "wayland-0",
+        "PYTHONUNBUFFERED": "1"
+      },
+      "tools": [
+        "*"
+      ]
+    },
+    "flowchart-gen": {
+      "enabled": true,
+      "headers": {},
+      "tools": [
+        "*"
+      ],
+      "transport": "stdio",
+      "type": "local",
+      "command": "/usr/bin/node-22",
+      "args": [
+        "/home/kihi2024/Downloads/mcp_claude_flow_chart_gen/dist/index.js"
+      ],
+      "cwd": ".",
+      "env": {}
+    }
+  }
+}

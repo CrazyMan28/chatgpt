@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/index.ts"
+  ],
+  "references": [
+    {
+      "path": "../../packages/runtime-core"
+    },
+    {
+      "path": "../../packages/storage-sqlite"
+    },
+    {
+      "path": "../../packages/orchestrator"
+    }
+  ]
+}

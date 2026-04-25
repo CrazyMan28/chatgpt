@@ -1,0 +1,40 @@
+{
+  "defaults": {
+    "timeout": 30000,
+    "restartOnFail": true,
+    "log": false
+  },
+  "mcpServers": {
+    "nogui": {
+      "enabled": true,
+      "headers": {
+        "X-API-Key": "labkey123"
+      },
+      "type": "http",
+      "transport": "http",
+      "command": "",
+      "url": "100.73.170.110:3000",
+      "args": [],
+      "cwd": ".",
+      "env": {},
+      "tools": [
+        "*"
+      ]
+    },
+    "test": {
+      "enabled": true,
+      "headers": {},
+      "tools": [
+        "*"
+      ],
+      "transport": "stdio",
+      "type": "command",
+      "command": "/home/kihi2024/.local/bin/uv",
+      "args": [
+        "/home/kihi2024/Downloads/mcp_project/mcp-hand-desktop"
+      ],
+      "cwd": "/home/kihi2024/Downloads/mcp_project/mcp-hand-desktop",
+      "env": {}
+    }
+  }
+}

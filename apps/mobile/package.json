@@ -1,0 +1,21 @@
+{
+  "name": "@chatgpt-code/mobile",
+  "version": "0.3.0",
+  "private": true,
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "dev": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "typecheck": "tsc --noEmit",
+    "prebuild:android": "expo prebuild --platform android",
+    "apk:debug": "expo run:android --variant debug",
+    "apk:release": "expo run:android --variant release"
+  },
+  "dependencies": {
+    "expo": "^54.0.0",
+    "expo-status-bar": "^3.0.8",
+    "react": "^19.1.0",
+    "react-native": "^0.81.0"
+  }
+}

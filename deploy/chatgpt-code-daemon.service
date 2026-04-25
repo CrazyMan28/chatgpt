@@ -1,0 +1,18 @@
+[Unit]
+Description=ChatGPT Code Orchestrator Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__WORKDIR__
+EnvironmentFile=__ENV_FILE__
+ExecStart=/usr/bin/env npm run start -w @chatgpt-code/daemon
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

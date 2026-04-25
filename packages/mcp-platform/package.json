@@ -1,0 +1,17 @@
+{
+  "name": "@chatgpt-code/mcp-platform",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "@chatgpt-code/runtime-core": "0.2.0"
+  }
+}

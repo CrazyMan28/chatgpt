@@ -1,0 +1,16 @@
+{
+  "name": "@chatgpt-code/daemon",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@chatgpt-code/orchestrator": "0.2.0",
+    "@chatgpt-code/runtime-core": "0.2.0",
+    "@chatgpt-code/storage-sqlite": "0.2.0"
+  }
+}

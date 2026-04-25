@@ -1,0 +1,13 @@
+{
+  "name": "n8n-shared",
+  "version": "1.0.0",
+  "description": "Shared TypeScript interfaces and utilities for n8n-style app",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "defaults": {
+    "timeout": 30000,
+    "restartOnFail": true,
+    "log": false
+  },
+  "mcpServers": {}
+}

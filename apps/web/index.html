@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChatGPT Code Web</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0d131c;
+        --panel: #182131;
+        --text: #f4eee1;
+        --muted: #9fb0c1;
+        --accent: #c9d9ea;
+      }
+
+      body {
+        background: radial-gradient(circle at top left, #243449, var(--bg) 58%);
+        color: var(--text);
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

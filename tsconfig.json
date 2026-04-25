@@ -1,0 +1,32 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/runtime-core"
+    },
+    {
+      "path": "./packages/storage-sqlite"
+    },
+    {
+      "path": "./packages/mcp-platform"
+    },
+    {
+      "path": "./packages/worker-local"
+    },
+    {
+      "path": "./packages/worker-remote"
+    },
+    {
+      "path": "./packages/client-sdk"
+    },
+    {
+      "path": "./packages/orchestrator"
+    },
+    {
+      "path": "./apps/tui"
+    },
+    {
+      "path": "./apps/daemon"
+    }
+  ]
+}

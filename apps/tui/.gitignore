@@ -1,0 +1,52 @@
+# Compiled output
+/dist
+/node_modules
+
+# Logs and databases
+.log
+*.log
+*.db
+*.db-shm
+*.db-wal
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env*.test
+
+# Temporary files
+.DS_Store
+*.tmp
+
+# Testing artifacts
+/coverage
+/nyc_output
+/test-results
+
+# TypeScript build info
+*.tsbuildinfo
+
+# ChatGPT-Code specific
+.chatgpt-code/
+
+# Miscellaneous
+why_i_love_life_*.txt
+log.txt
+plan.md
+
+# Dependency debugging
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Non-project directories
+testing/
+testingtest/
+testmodal/

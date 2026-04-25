@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "jsx": "react-jsx",
+    "strict": true,
+    "types": [
+      "node",
+      "react"
+    ],
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "paths": {
+      "@chatgpt-code/runtime-core": [
+        "packages/runtime-core/src/index.ts"
+      ],
+      "@chatgpt-code/storage-sqlite": [
+        "packages/storage-sqlite/src/index.ts"
+      ],
+      "@chatgpt-code/mcp-platform": [
+        "packages/mcp-platform/src/index.ts"
+      ],
+      "@chatgpt-code/worker-local": [
+        "packages/worker-local/src/index.ts"
+      ],
+      "@chatgpt-code/worker-remote": [
+        "packages/worker-remote/src/index.ts"
+      ],
+      "@chatgpt-code/client-sdk": [
+        "packages/client-sdk/src/index.ts"
+      ],
+      "@chatgpt-code/orchestrator": [
+        "packages/orchestrator/src/index.ts"
+      ]
+    }
+  }
+}

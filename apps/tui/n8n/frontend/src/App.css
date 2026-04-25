@@ -1,0 +1,9 @@
+.app {
+  text-align: center;
+  padding: 2rem;
+  font-family: Arial, sans-serif;
+}
+
+.app h1 {
+  color: #333;
+}
