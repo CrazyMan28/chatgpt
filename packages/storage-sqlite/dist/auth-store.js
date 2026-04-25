@@ -18,8 +18,17 @@ export class SqliteVaultAuthStore {
         if (!row) {
             return this.save(fallback);
         }
-        const decrypted = decryptJson(row, this.passphrase);
-        return decrypted;
+        try {
+            return decryptJson(row, this.passphrase);
+        }
+        catch {
+            emitVaultWarning([
+                "Saved auth could not be decrypted with the provided vault passphrase.",
+                "Starting with a logged-out auth config instead.",
+                "Use the original passphrase to recover the saved login, or run /login to save new credentials with this passphrase."
+            ].join(" "));
+            return fallback;
+        }
     }
     async save(config) {
         const encrypted = encryptJson(config, this.passphrase);
@@ -64,5 +73,8 @@ function decryptJson(row, passphrase) {
         decipher.final()
     ]).toString("utf8");
     return JSON.parse(plaintext);
+}
+function emitVaultWarning(message) {
+    process.stderr.write(`Auth warning: ${message}\n`);
 }
 //# sourceMappingURL=auth-store.js.map
