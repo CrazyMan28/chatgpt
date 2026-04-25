@@ -43,8 +43,8 @@ export class SqliteVaultAuthStore implements AuthStore {
       emitVaultWarning(
         [
           "Saved auth could not be decrypted with the provided vault passphrase.",
-          "Starting with a logged-out auth config instead.",
-          "Use the original passphrase to recover the saved login, or run /login to save new credentials with this passphrase."
+          "Starting with the configured fallback auth instead.",
+          "Use the original passphrase to recover the saved login, set CHATGPT_CODE_MISTRAL_API_KEY, or run /login to save new credentials with this passphrase."
         ].join(" ")
       );
       return fallback;

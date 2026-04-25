@@ -8,6 +8,8 @@ import type { StoredProviderSettingsMap } from "../providers/provider-types.js";
 const AUTH_CONFIG_PATH = ".chatgpt-code/auth.json";
 const AUTH_SCHEMA_VERSION = 1;
 const DEFAULT_LOCAL_MODEL = "mock-local";
+const DEFAULT_MISTRAL_BASE_URL = "https://api.mistral.ai/v1";
+const DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
 
 export interface AuthConfigRecord {
   activeProvider: ModelProvider;
@@ -126,7 +128,29 @@ export function createAuthConfigFromModelConfig(
   }
 }
 
-export function createDefaultAuthConfig(): AuthConfigRecord {
+export function createDefaultAuthConfig(
+  env: NodeJS.ProcessEnv = process.env
+): AuthConfigRecord {
+  const mistralApiKey = normalizeOptionalString(env.CHATGPT_CODE_MISTRAL_API_KEY);
+
+  if (mistralApiKey) {
+    return normalizeAuthConfig({
+      activeProvider: "mistral",
+      providers: {
+        mistral: {
+          apiKey: mistralApiKey,
+          baseUrl:
+            normalizeOptionalString(env.CHATGPT_CODE_MISTRAL_BASE_URL) ??
+            DEFAULT_MISTRAL_BASE_URL,
+          model:
+            normalizeOptionalString(env.CHATGPT_CODE_MODEL) ??
+            DEFAULT_MISTRAL_MODEL
+        }
+      },
+      version: AUTH_SCHEMA_VERSION
+    });
+  }
+
   return normalizeAuthConfig({
     activeProvider: "local",
     providers: {

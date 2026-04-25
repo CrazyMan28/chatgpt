@@ -16,6 +16,7 @@ const DEFAULT_LOCAL_MODEL = "mock-local";
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
 const DEFAULT_MISTRAL_BASE_URL = "https://api.mistral.ai/v1";
+const DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
 
 export interface AppConfig {
@@ -28,7 +29,7 @@ export function loadAppConfig(
   env: NodeJS.ProcessEnv = process.env,
   cwd = process.cwd()
 ): AppConfig {
-  const provider = parseModelProvider(env.CHATGPT_CODE_MODEL_PROVIDER);
+  const provider = resolveModelProvider(env);
   const fileConfig = loadConfigFile(env, cwd);
 
   return {
@@ -39,17 +40,27 @@ export function loadAppConfig(
           ? loadAnthropicModelConfig(env)
           : provider === "mistral"
             ? loadMistralModelConfig(env)
-        : loadLocalModelConfig(env),
+            : loadLocalModelConfig(env),
     mcpDefaults: fileConfig.defaults,
     mcpServers: fileConfig.mcpServers
   };
 }
 
-function parseModelProvider(value: string | undefined): ModelProvider {
-  if (value === undefined || value.trim().length === 0) {
-    return "local";
+function resolveModelProvider(env: NodeJS.ProcessEnv): ModelProvider {
+  const explicitProvider = readOptionalValue(env.CHATGPT_CODE_MODEL_PROVIDER);
+
+  if (explicitProvider) {
+    return parseModelProvider(explicitProvider);
   }
 
+  if (readOptionalValue(env.CHATGPT_CODE_MISTRAL_API_KEY)) {
+    return "mistral";
+  }
+
+  return "local";
+}
+
+function parseModelProvider(value: string): ModelProvider {
   if (
     value === "local" ||
     value === "openai" ||
@@ -134,14 +145,8 @@ function loadAnthropicModelConfig(env: NodeJS.ProcessEnv): AnthropicModelConfig 
 }
 
 function loadMistralModelConfig(env: NodeJS.ProcessEnv): MistralModelConfig {
-  const model = readOptionalValue(env.CHATGPT_CODE_MODEL);
+  const model = readOptionalValue(env.CHATGPT_CODE_MODEL) ?? DEFAULT_MISTRAL_MODEL;
   const apiKey = readOptionalValue(env.CHATGPT_CODE_MISTRAL_API_KEY);
-
-  if (model === undefined) {
-    throw new Error(
-      "CHATGPT_CODE_MODEL is required when CHATGPT_CODE_MODEL_PROVIDER=mistral."
-    );
-  }
 
   if (apiKey === undefined) {
     throw new Error(

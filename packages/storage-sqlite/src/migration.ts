@@ -5,7 +5,8 @@ import {
   FileSessionStore,
   JsonAuthStore,
   JsonMemoryStore,
-  JsonTaskStore
+  JsonTaskStore,
+  type AuthConfigRecord
 } from "@chatgpt-code/runtime-core";
 
 import { PlatformDatabase } from "./database.js";
@@ -16,6 +17,9 @@ import { SqliteTaskStore } from "./task-store.js";
 
 const LEGACY_MIGRATION_KEY = "legacy-json-migration";
 const LEGACY_BACKUP_DIRECTORY = ".chatgpt-code/legacy-backups";
+const AUTH_VAULT_KEY = "auth-config";
+const DEFAULT_LOCAL_MODEL = "mock-local";
+const VAULT_DECRYPT_SENTINEL_MODEL = "__chatgpt-code-vault-decrypt-sentinel__";
 
 export async function migrateLegacyWorkspaceState(options: {
   database: PlatformDatabase;
@@ -25,6 +29,11 @@ export async function migrateLegacyWorkspaceState(options: {
   const { database, passphrase, workspaceRoot } = options;
 
   if (database.getMeta(LEGACY_MIGRATION_KEY) === "complete") {
+    await recoverLegacyMistralAuthIfVaultFallsBack({
+      database,
+      passphrase,
+      workspaceRoot
+    });
     return;
   }
 
@@ -87,6 +96,82 @@ export async function migrateLegacyWorkspaceState(options: {
   }
 
   database.setMeta(LEGACY_MIGRATION_KEY, "complete");
+}
+
+async function recoverLegacyMistralAuthIfVaultFallsBack(options: {
+  database: PlatformDatabase;
+  passphrase: string;
+  workspaceRoot: string;
+}): Promise<void> {
+  const { database, passphrase, workspaceRoot } = options;
+  const legacyAuthPath = resolve(workspaceRoot, ".chatgpt-code/auth.json");
+
+  if (!existsSync(legacyAuthPath) || !hasVaultAuthConfig(database)) {
+    return;
+  }
+
+  const authStore = new SqliteVaultAuthStore(database, passphrase);
+  const vaultAuth = await authStore.load(createVaultDecryptProbeAuthConfig());
+
+  if (!shouldRecoverFromLegacyAuth(vaultAuth)) {
+    return;
+  }
+
+  const legacyAuthStore = new JsonAuthStore(workspaceRoot);
+  const legacyAuth = await legacyAuthStore.load();
+
+  if (!hasMistralLogin(legacyAuth)) {
+    return;
+  }
+
+  await authStore.save(legacyAuth);
+}
+
+function hasVaultAuthConfig(database: PlatformDatabase): boolean {
+  return Boolean(
+    database.get<{ key: string }>(
+      "SELECT key FROM vault_entries WHERE key = ?",
+      AUTH_VAULT_KEY
+    )
+  );
+}
+
+function createVaultDecryptProbeAuthConfig(): AuthConfigRecord {
+  return {
+    activeProvider: "local",
+    providers: {
+      local: {
+        model: VAULT_DECRYPT_SENTINEL_MODEL
+      }
+    },
+    version: 1
+  };
+}
+
+function shouldRecoverFromLegacyAuth(auth: AuthConfigRecord): boolean {
+  return isVaultDecryptProbeAuthConfig(auth) || isMockLocalAuthConfig(auth);
+}
+
+function isVaultDecryptProbeAuthConfig(auth: AuthConfigRecord): boolean {
+  return (
+    auth.activeProvider === "local" &&
+    auth.providers.local?.model === VAULT_DECRYPT_SENTINEL_MODEL
+  );
+}
+
+function isMockLocalAuthConfig(auth: AuthConfigRecord): boolean {
+  return (
+    auth.activeProvider === "local" &&
+    auth.providers.local?.model === DEFAULT_LOCAL_MODEL
+  );
+}
+
+function hasMistralLogin(auth: AuthConfigRecord): boolean {
+  return (
+    auth.activeProvider === "mistral" &&
+    typeof auth.providers.mistral?.apiKey === "string" &&
+    auth.providers.mistral.apiKey.trim().length > 0
+  );
 }
 
 function backupLegacyFile(workspaceRoot: string, relativePath: string): void {

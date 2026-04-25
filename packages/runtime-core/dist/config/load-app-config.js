@@ -3,9 +3,10 @@ const DEFAULT_LOCAL_MODEL = "mock-local";
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
 const DEFAULT_MISTRAL_BASE_URL = "https://api.mistral.ai/v1";
+const DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
 export function loadAppConfig(env = process.env, cwd = process.cwd()) {
-    const provider = parseModelProvider(env.CHATGPT_CODE_MODEL_PROVIDER);
+    const provider = resolveModelProvider(env);
     const fileConfig = loadConfigFile(env, cwd);
     return {
         model: provider === "openai"
@@ -19,10 +20,17 @@ export function loadAppConfig(env = process.env, cwd = process.cwd()) {
         mcpServers: fileConfig.mcpServers
     };
 }
-function parseModelProvider(value) {
-    if (value === undefined || value.trim().length === 0) {
-        return "local";
+function resolveModelProvider(env) {
+    const explicitProvider = readOptionalValue(env.CHATGPT_CODE_MODEL_PROVIDER);
+    if (explicitProvider) {
+        return parseModelProvider(explicitProvider);
     }
+    if (readOptionalValue(env.CHATGPT_CODE_MISTRAL_API_KEY)) {
+        return "mistral";
+    }
+    return "local";
+}
+function parseModelProvider(value) {
     if (value === "local" ||
         value === "openai" ||
         value === "anthropic" ||
@@ -80,11 +88,8 @@ function loadAnthropicModelConfig(env) {
     };
 }
 function loadMistralModelConfig(env) {
-    const model = readOptionalValue(env.CHATGPT_CODE_MODEL);
+    const model = readOptionalValue(env.CHATGPT_CODE_MODEL) ?? DEFAULT_MISTRAL_MODEL;
     const apiKey = readOptionalValue(env.CHATGPT_CODE_MISTRAL_API_KEY);
-    if (model === undefined) {
-        throw new Error("CHATGPT_CODE_MODEL is required when CHATGPT_CODE_MODEL_PROVIDER=mistral.");
-    }
     if (apiKey === undefined) {
         throw new Error("CHATGPT_CODE_MISTRAL_API_KEY is required when CHATGPT_CODE_MODEL_PROVIDER=mistral.");
     }
