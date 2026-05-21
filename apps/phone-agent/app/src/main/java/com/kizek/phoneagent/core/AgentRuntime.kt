@@ -2001,7 +2001,7 @@ class AgentRuntime(
     }
 
     private fun continuationSteps(continuation: JSONObject?): List<String> {
-        val steps = continuation?.optJSONArray("compoundSteps") ?: return emptyList()
+        val steps = continuation?.optJSONObject("args")?.optJSONArray("compoundSteps") ?: return emptyList()
         return List(steps.length()) { index -> steps.optString(index).trim() }.filter { it.isNotBlank() }
     }
 
