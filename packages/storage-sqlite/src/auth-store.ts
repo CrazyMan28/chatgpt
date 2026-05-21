@@ -37,8 +37,18 @@ export class SqliteVaultAuthStore implements AuthStore {
       return this.save(fallback);
     }
 
-    const decrypted = decryptJson<AuthConfigRecord>(row, this.passphrase);
-    return decrypted;
+    try {
+      return decryptJson<AuthConfigRecord>(row, this.passphrase);
+    } catch {
+      emitVaultWarning(
+        [
+          "Saved auth could not be decrypted with the provided vault passphrase.",
+          "Starting with the configured fallback auth instead.",
+          "Use the original passphrase to recover the saved login, set CHATGPT_CODE_MISTRAL_API_KEY, or run /login to save new credentials with this passphrase."
+        ].join(" ")
+      );
+      return fallback;
+    }
   }
 
   async save(config: AuthConfigRecord): Promise<AuthConfigRecord> {
@@ -104,4 +114,8 @@ function decryptJson<T>(
   ]).toString("utf8");
 
   return JSON.parse(plaintext) as T;
+}
+
+function emitVaultWarning(message: string): void {
+  process.stderr.write(`Auth warning: ${message}\n`);
 }

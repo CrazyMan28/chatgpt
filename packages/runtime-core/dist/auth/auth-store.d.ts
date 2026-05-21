@@ -16,5 +16,5 @@ export declare class JsonAuthStore implements AuthStore {
     save(config: AuthConfigRecord): Promise<AuthConfigRecord>;
 }
 export declare function createAuthConfigFromModelConfig(modelConfig: ModelConfig): AuthConfigRecord;
-export declare function createDefaultAuthConfig(): AuthConfigRecord;
+export declare function createDefaultAuthConfig(env?: NodeJS.ProcessEnv): AuthConfigRecord;
 //# sourceMappingURL=auth-store.d.ts.map
