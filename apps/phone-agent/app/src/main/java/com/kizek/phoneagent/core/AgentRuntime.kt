@@ -229,6 +229,7 @@ class AgentRuntime(
                     taskQueue.update(task, "running", "Continuing compound command (${remaining.size} step(s) remaining)")
                     for ((stepIdx, step) in remaining.withIndex()) {
                         taskQueue.update(task, "running", "Compound step ${stepIdx + 2} / ${intents.size}: ${step.take(60)}")
+                        val remainingAfterThis = remaining.drop(stepIdx + 1)
                         val stepPlan = directPlan(step)
                         if (stepPlan != null) {
                             val results = executeDirectPlan(sessionId, task, stepPlan)
@@ -240,7 +241,7 @@ class AgentRuntime(
                                 }
                             }
                         } else {
-                            runAgentLoop(sessionId, task, step)
+                            runAgentLoop(sessionId, task, step, remainingAfterThis)
                             return
                         }
                     }
@@ -1020,7 +1021,12 @@ class AgentRuntime(
         return listOf(disclosure, draftAnswer).filter { it.isNotBlank() }.joinToString("\n\n")
     }
 
-    private suspend fun runAgentLoop(sessionId: String, task: TaskEntity, userPrompt: String) {
+    private suspend fun runAgentLoop(
+        sessionId: String,
+        task: TaskEntity,
+        userPrompt: String,
+        compoundContinuationSteps: List<String> = emptyList()
+    ) {
         val messages = buildContextMessages(sessionId, userPrompt).toMutableList()
         var lastToolResult: PhoneToolResult? = null
         repeat(maxAgentSteps) { step ->
@@ -1056,7 +1062,11 @@ class AgentRuntime(
                         source = "agent_loop",
                         originalGoal = userPrompt,
                         tool = "",
-                        args = JSONObject()
+                        args = JSONObject().apply {
+                            if (compoundContinuationSteps.isNotEmpty()) {
+                                put("compoundSteps", JSONArray(compoundContinuationSteps))
+                            }
+                        }
                     )
                     eventLog.append(sessionId, "QuestionRequested", "assistant", directive.title.ifBlank { "Question" }, directive.toJson().toString(2))
                     taskQueue.update(task, "waiting", "Waiting for question answer")
@@ -1763,13 +1773,16 @@ class AgentRuntime(
                         appendLine(answer)
                         appendLine()
                         append("Continue the task from this answer. Choose one JSON directive or final answer.")
-                        compoundContinuationHint(continuation.optString("originalGoal"))?.let { hint ->
+                        compoundContinuationHint(
+                            continuation.optString("originalGoal"),
+                            continuationSteps(continuation)
+                        )?.let { hint ->
                             appendLine()
                             appendLine()
                             append(hint)
                         }
                     }
-                    runAgentLoop(question.sessionId, task, prompt)
+                    runAgentLoop(question.sessionId, task, prompt, continuationSteps(continuation))
                 }
             }
             "phone_parser_clarify" -> {
@@ -1792,7 +1805,7 @@ class AgentRuntime(
                                 taskQueue.update(task, if (results.all { it.success }) "done" else "failed", "Clarified phone command completed")
                             }
                         } else {
-                            runAgentLoop(question.sessionId, task, compoundContinuationPrompt(clarified, answer))
+                            runAgentLoop(question.sessionId, task, compoundContinuationPrompt(clarified, answer, continuationSteps(continuation)))
                         }
                     }
                 }
@@ -1958,8 +1971,8 @@ class AgentRuntime(
             .toString(2)
     }
 
-    private fun compoundContinuationPrompt(originalGoal: String, answer: String): String {
-        val compoundHint = compoundContinuationHint(originalGoal)
+    private fun compoundContinuationPrompt(originalGoal: String, answer: String, compoundSteps: List<String> = emptyList()): String {
+        val compoundHint = compoundContinuationHint(originalGoal, compoundSteps)
         return buildString {
             appendLine("Original goal:")
             appendLine(originalGoal)
@@ -1975,8 +1988,8 @@ class AgentRuntime(
         }
     }
 
-    private fun compoundContinuationHint(originalGoal: String): String? {
-        val steps = PhoneCommandParser.splitCompoundIntents(originalGoal)
+    private fun compoundContinuationHint(originalGoal: String, compoundSteps: List<String> = emptyList()): String? {
+        val steps = if (compoundSteps.isNotEmpty()) compoundSteps else PhoneCommandParser.splitCompoundIntents(originalGoal).drop(1)
         if (steps.size <= 1) return null
         return buildString {
             appendLine("Compound goal reminder:")
@@ -1985,6 +1998,11 @@ class AgentRuntime(
             }
             append("Continue with the remaining steps after resolving the answer.")
         }
+    }
+
+    private fun continuationSteps(continuation: JSONObject?): List<String> {
+        val steps = continuation?.optJSONArray("compoundSteps") ?: return emptyList()
+        return List(steps.length()) { index -> steps.optString(index).trim() }.filter { it.isNotBlank() }
     }
 
     private fun isScreenAskPrompt(text: String): Boolean {
