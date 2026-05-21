@@ -13,6 +13,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "build:core": "npm run build -w @chatgpt-code/runtime-core && npm run build -w @chatgpt-code/storage-sqlite && npm run build -w @chatgpt-code/mcp-platform && npm run build -w @chatgpt-code/worker-local && npm run build -w @chatgpt-code/worker-remote && npm run build -w @chatgpt-code/client-sdk && npm run build -w @chatgpt-code/orchestrator && npm run build -w @chatgpt-code/tui && npm run build -w @chatgpt-code/daemon",
+    "phone:build": "cd apps/phone-agent && ./gradlew assembleDebug",
     "daemon": "npm run dev -w @chatgpt-code/daemon",
     "dev": "npm run dev -w @chatgpt-code/tui",
     "dev:mobile": "npm run dev -w @chatgpt-code/mobile",
