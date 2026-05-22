@@ -1233,7 +1233,7 @@ private fun redactSensitiveText(input: String): String {
             "$1[REDACTED]$3"
         )
         .replace(
-            Regex("(?im)(\"?$sensitiveFieldPattern\"?\\s*[:=]\\s*)([^\\n,\\s]+)"),
+            Regex("(?im)(\"?$sensitiveFieldPattern\"?\\s*[:=]\\s*)([^\\n]+)"),
             "$1[REDACTED]"
         )
 }
