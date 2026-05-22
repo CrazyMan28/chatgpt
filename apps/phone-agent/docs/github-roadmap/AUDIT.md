@@ -24,4 +24,7 @@
 
 - Compound prompts are parsed and can carry follow-up steps through question resumes.
 - Question answers are persisted and routed back into the runtime continuation path.
+- Multi-tool agent loops keep tool results in the model context, require explicit `GOAL_COMPLETE:` final text for multi-step goals, enforce the max-step limit, and log stop reasons.
+- The parser handles common action/app typos, Levenshtein app matching, current-app search, and follow-up app commands without treating the whole sentence as an app name.
+- Provider routing distinguishes configuration, auth, rate-limit, temporary, offline, and model errors, with retry/fallback handling before surfacing a user-facing failure.
 - The app builds a debug APK from the Android Gradle project.

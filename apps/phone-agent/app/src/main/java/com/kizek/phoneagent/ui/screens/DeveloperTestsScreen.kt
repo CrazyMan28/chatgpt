@@ -222,7 +222,8 @@ private fun developerTestSections(): List<DeveloperTestSection> {
                 DeveloperTestItem("openai_compatible_test", "11 OpenAI-compatible test", "Runs configured OpenAI-compatible provider test or clean setup/error card."),
                 DeveloperTestItem("local_http_test", "12 Local HTTP test", "Runs configured local HTTP provider test or offline card."),
                 DeveloperTestItem("ollama_status_list_models", "13 Ollama list models", "Calls Ollama /api/tags or shows an offline card."),
-                DeveloperTestItem("provider_fallback_test", "14 Provider fallback", "Shows AI provider fallback order and configured states.")
+                DeveloperTestItem("provider_fallback_test", "14 Provider fallback", "Shows AI provider fallback order and configured states."),
+                DeveloperTestItem("provider_error_classifier_matrix", "14a Error classifier", "Checks 429/auth/timeout/offline provider error classes.")
             )
         ),
         DeveloperTestSection(
@@ -282,6 +283,7 @@ private fun developerTestSections(): List<DeveloperTestSection> {
                 DeveloperTestItem("parser_settings_tap_display", "15d Settings tap", "Parses setings typo and tap target."),
                 DeveloperTestItem("parser_discord_tap_friends", "15e Discord tap", "Parses in-app tap syntax."),
                 DeveloperTestItem("regression_never_full_command_app_name", "15f App extraction regression", "Never passes the full command as the app name."),
+                DeveloperTestItem("parser_current_app_search", "15g Current app search", "Parses search for text as a current-app accessibility search."),
                 DeveloperTestItem("phone_open_youtube_alias", "16 Open YouTube", "Opens YouTube by alias or shows a clear missing-app result."),
                 DeveloperTestItem("phone_youtube_search", "17 YouTube search", "Runs direct intent or accessibility search for iron man edits."),
                 DeveloperTestItem("phone_chrome_search", "18 Chrome search", "Runs Chrome search for minecraft fabric mod setup."),
@@ -311,6 +313,8 @@ private fun developerTestSections(): List<DeveloperTestSection> {
                 DeveloperTestItem("provider_429_simulation", "Provider 429 classification", "Rate limit is not shown as not configured."),
                 DeveloperTestItem("provider_timeout_simulation", "Provider timeout classification", "Temporary failure stays distinct from setup."),
                 DeveloperTestItem("provider_auth_simulation", "Provider auth classification", "Invalid key is classified as auth."),
+                DeveloperTestItem("issue7_final_requires_goal_complete", "Issue 7 final gate", "A tool status final does not stop a multi-step goal unless marked complete."),
+                DeveloperTestItem("issue7_compound_direct_plan", "Issue 7 compound plan", "SSH, file, and app direct-plan segments combine into one chain."),
                 DeveloperTestItem("question_resume_simulation", "Question resume", "Answering a stored question resumes its continuation path."),
                 DeveloperTestItem("typed_answer_routes_question", "Typed answer routing", "Normal chat text answers the active question first."),
                 DeveloperTestItem("issue6_question_creates_pending", "Issue 6 pending question", "ask me a question then open youtube creates a real pending Question."),

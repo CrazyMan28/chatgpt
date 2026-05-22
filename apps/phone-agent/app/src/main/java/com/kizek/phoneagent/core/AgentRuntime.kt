@@ -280,6 +280,18 @@ class AgentRuntime(
                 return
             }
 
+            if (isCompound) {
+                compoundDirectPlan(intents)?.let { plan ->
+                    val results = executeDirectPlan(sessionId, task, plan)
+                    if (results != null) {
+                        val answer = directPlanAnswer(prompt, plan, results)
+                        eventLog.append(sessionId, "MessageAdded", "assistant", answer, chainDetails(results))
+                        taskQueue.update(task, if (results.all { it.success }) "done" else "failed", "Compound direct plan completed")
+                    }
+                    return
+                }
+            }
+
             if (worker == WorkerMode.LAPTOP || worker == WorkerMode.SERVER) {
                 val remoteResult = withTimeoutOrNull(REMOTE_SEND_TIMEOUT_MS) {
                     orchestratorClient.sendMessage(sessionId, prompt)
@@ -697,6 +709,50 @@ class AgentRuntime(
                 val message = friendlyModelSetupMessage("MODEL_ERROR_CLASS=auth HTTP 401 invalid key")
                 val ok = message.contains("API key rejected", ignoreCase = true)
                 eventLog.append(sessionId, "MessageAdded", "system", if (ok) "Provider auth classification passed: $message" else "Provider auth classification failed: $message")
+                taskQueue.update(task, if (ok) "done" else "failed", message)
+                return
+            }
+            "issue7_final_requires_goal_complete" -> {
+                val result = PhoneToolResult.ok("ssh_exec", "Command exited with 0.", stdout = "ok", exitCode = 0, workerUsed = WorkerMode.HYBRID.id)
+                val prompt = "ssh into the code vm then write a file then open youtube"
+                val blocksShallow = finalNeedsContinuation("Command exited with 0.", prompt, result)
+                val acceptsMarked = !finalNeedsContinuation("GOAL_COMPLETE: SSH, file write, and YouTube open all completed.", prompt, result)
+                val ok = blocksShallow && acceptsMarked
+                val message = if (ok) "Issue #7 final gate passed." else "Issue #7 final gate failed: blocksShallow=$blocksShallow acceptsMarked=$acceptsMarked"
+                eventLog.append(sessionId, "MessageAdded", "system", message)
+                taskQueue.update(task, if (ok) "done" else "failed", message)
+                return
+            }
+            "issue7_compound_direct_plan" -> {
+                val plan = compoundDirectPlan(listOf("check ssh connection", "create file named issue7.txt", "open youtube"))
+                val tools = plan?.actions.orEmpty().map { it.tool }
+                val ok = tools == listOf("ssh_status", "ssh_test_connection", "file_write", "phone_open_app")
+                val message = if (ok) "Issue #7 compound direct plan passed: ${tools.joinToString(" -> ")}." else "Issue #7 compound direct plan failed: ${tools.joinToString(" -> ")}."
+                eventLog.append(sessionId, "MessageAdded", "system", message)
+                taskQueue.update(task, if (ok) "done" else "failed", message)
+                return
+            }
+            "parser_current_app_search" -> {
+                val parsed = PhoneCommandParser.parse("search for iron man")
+                val ok = parsed?.app.isNullOrBlank() && parsed?.followUpType == PhoneCommandParser.FollowUpType.SEARCH && parsed.query == "iron man"
+                val message = if (ok) "Parser current-app search passed." else "Parser current-app search failed: $parsed"
+                eventLog.append(sessionId, "MessageAdded", "system", message)
+                taskQueue.update(task, if (ok) "done" else "failed", message)
+                return
+            }
+            "provider_error_classifier_matrix" -> {
+                val rate = com.kizek.phoneagent.models.ModelErrorClassifier.classify(IllegalStateException("Mistral rate limited: HTTP 429 retryAfterSeconds=3"), "Mistral")
+                val auth = com.kizek.phoneagent.models.ModelErrorClassifier.classify(IllegalStateException("HTTP 401 invalid key"), "Mistral")
+                val timeout = com.kizek.phoneagent.models.ModelErrorClassifier.classify(java.net.SocketTimeoutException("timeout"), "Mistral")
+                val offline = com.kizek.phoneagent.models.ModelErrorClassifier.classify(java.net.UnknownHostException("Unable to resolve host"), "Mistral")
+                val ok = rate.kind == com.kizek.phoneagent.models.ModelErrorKind.RATE_LIMITED &&
+                    rate.retryable &&
+                    rate.retryAfterSeconds == 3L &&
+                    auth.kind == com.kizek.phoneagent.models.ModelErrorKind.AUTH &&
+                    timeout.kind == com.kizek.phoneagent.models.ModelErrorKind.TEMPORARY &&
+                    offline.kind == com.kizek.phoneagent.models.ModelErrorKind.OFFLINE
+                val message = if (ok) "Provider error classifier matrix passed." else "Provider classifier failed: rate=$rate auth=$auth timeout=$timeout offline=$offline"
+                eventLog.append(sessionId, "MessageAdded", "system", message)
                 taskQueue.update(task, if (ok) "done" else "failed", message)
                 return
             }
@@ -1209,19 +1265,22 @@ class AgentRuntime(
                 val message = friendlyModelSetupMessage(raw)
                 recordRuntimeError(sessionId, "model_call", message, IllegalStateException(raw))
                 taskQueue.update(task, "failed", message)
+                logAgentStop(sessionId, task, "model_unavailable", message)
                 return
             }
             when (val directive = parseDirective(raw)) {
                 is AgentDirective.Final -> {
-                    if (lastToolResult != null && isShallowToolCompletion(directive.content, userPrompt)) {
+                    if (finalNeedsContinuation(directive.content, userPrompt, lastToolResult)) {
                         messages += ModelMessage(
                             "user",
-                            "The last response only summarized a tool status. Original goal: ${sanitizeForPrompt(userPrompt, 1_200)}. Last tool: ${toolResultBrief(lastToolResult!!)}. Continue with another tool_call, question, or a real final answer."
+                            "The last response did not explicitly mark the original goal complete. Original goal: ${sanitizeForPrompt(userPrompt, 1_200)}. Last tool: ${toolResultBrief(lastToolResult!!)}. Continue with another tool_call, question, or a final answer whose content begins with GOAL_COMPLETE: only after every requested step is done."
                         )
                         return@repeat
                     }
-                    eventLog.append(sessionId, "MessageAdded", "assistant", directive.content)
+                    val finalContent = stripGoalCompleteMarker(directive.content)
+                    eventLog.append(sessionId, "MessageAdded", "assistant", finalContent)
                     taskQueue.update(task, "done", "Final response")
+                    logAgentStop(sessionId, task, "final_response", JSONObject().put("goalMarkedComplete", hasGoalCompleteMarker(directive.content)).toString())
                     return
                 }
                 is AgentDirective.Question -> {
@@ -1251,20 +1310,28 @@ class AgentRuntime(
                     )
                     eventLog.append(sessionId, "QuestionRequested", "assistant", directive.title.ifBlank { "Question" }, directive.toJson().toString(2))
                     taskQueue.update(task, "waiting", "Waiting for question answer")
+                    logAgentStop(sessionId, task, "waiting_for_question", JSONObject().put("questionId", question.id).toString())
                     return
                 }
                 is AgentDirective.ToolCall -> {
                     val action = ToolAction(directive.tool, directive.args, workerRouter.routeForTool(directive.tool, selectedWorker))
                     decomposeOpenAppToolAction(action)?.let { plan ->
                         val results = executeDirectPlan(sessionId, task, plan)
-                        if (results == null) return
-                        messages += ModelMessage("user", "Tool chain result:\n${chainResultJson(results).toString(2)}\nContinue with the next JSON directive or final answer.")
+                        if (results == null) {
+                            logAgentStop(sessionId, task, "waiting_for_approval", "decomposed ${action.tool}")
+                            return
+                        }
+                        lastToolResult = results.lastOrNull()
+                        messages += ModelMessage("user", toolContinuationPrompt(userPrompt, chainResultJson(results).toString(2), lastToolResult))
                         return@repeat
                     }
                     val result = executeToolAction(sessionId, task, action, appendAssistantMessage = false)
-                    if (result == null) return
+                    if (result == null) {
+                        logAgentStop(sessionId, task, "waiting_for_tool_action", action.tool)
+                        return
+                    }
                     lastToolResult = result
-                    messages += ModelMessage("user", "Tool result:\n${result.toJson().put("args", action.args).toString(2)}\nInterpreter:\n${toolResultBrief(result)}\nContinue with the next JSON directive or final answer.")
+                    messages += ModelMessage("user", toolContinuationPrompt(userPrompt, result.toJson().put("args", action.args).toString(2), result))
                 }
                 is AgentDirective.ApprovalRequest -> {
                     val action = ToolAction(directive.tool, directive.args, workerRouter.routeForTool(directive.tool, selectedWorker))
@@ -1290,6 +1357,7 @@ class AgentRuntime(
                                 .put("args", JSONArray(plan.actions.map { it.toJson() }))
                                 .toString(2)
                         )
+                        logAgentStop(sessionId, task, "waiting_for_approval", "phone_plan")
                         return
                     }
                     requestApproval(
@@ -1306,6 +1374,7 @@ class AgentRuntime(
                         directive.reason.ifBlank { "Approval requested for ${directive.tool}." },
                         directive.toJson().toString(2)
                     )
+                    logAgentStop(sessionId, task, "waiting_for_approval", directive.tool)
                     return
                 }
                 is AgentDirective.WorkerRoute -> {
@@ -1317,6 +1386,7 @@ class AgentRuntime(
                     val message = "I could not read the model's tool instruction. The raw response is available in Details."
                     recordRuntimeError(sessionId, "tool_parser", message, IllegalArgumentException(directive.reason))
                     taskQueue.update(task, "failed", message)
+                    logAgentStop(sessionId, task, "parser_error", directive.reason)
                     return
                 }
             }
@@ -1329,6 +1399,7 @@ class AgentRuntime(
             JSONObject().put("maxSteps", maxAgentSteps).toString(2)
         )
         taskQueue.update(task, "waiting", "Step limit reached")
+        logAgentStop(sessionId, task, "max_step_limit", "maxAgentSteps=$maxAgentSteps")
     }
 
     private suspend fun executeDirectPlan(
@@ -2524,6 +2595,63 @@ class AgentRuntime(
         }
     }
 
+    private fun toolContinuationPrompt(originalGoal: String, toolJson: String, result: PhoneToolResult?): String {
+        val explicitCompletionRequired = result?.success == true && goalNeedsExplicitCompletion(originalGoal)
+        return buildString {
+            appendLine("Tool result:")
+            appendLine(toolJson)
+            result?.let {
+                appendLine()
+                appendLine("Interpreter:")
+                appendLine(toolResultBrief(it))
+            }
+            appendLine()
+            appendLine("Original goal:")
+            appendLine(sanitizeForPrompt(originalGoal, 1_200))
+            appendLine()
+            if (explicitCompletionRequired) {
+                append("If any requested step remains, continue with the next JSON tool_call or question. If every requested step is complete, return a final answer whose content begins with GOAL_COMPLETE:.")
+            } else {
+                append("Continue with the next JSON directive or final answer.")
+            }
+        }
+    }
+
+    private fun finalNeedsContinuation(content: String, originalGoal: String, lastToolResult: PhoneToolResult?): Boolean {
+        if (lastToolResult?.success != true) return false
+        if (hasGoalCompleteMarker(content)) return false
+        return isShallowToolCompletion(content, originalGoal) || goalNeedsExplicitCompletion(originalGoal)
+    }
+
+    private fun hasGoalCompleteMarker(content: String): Boolean {
+        val clean = content.trimStart()
+        return clean.startsWith("GOAL_COMPLETE:", ignoreCase = true) ||
+            clean.startsWith("[GOAL_COMPLETE]", ignoreCase = true)
+    }
+
+    private fun stripGoalCompleteMarker(content: String): String {
+        return content
+            .replace(Regex("""^\s*GOAL_COMPLETE:\s*""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""^\s*\[GOAL_COMPLETE]\s*""", RegexOption.IGNORE_CASE), "")
+            .trim()
+            .ifBlank { "Done." }
+    }
+
+    private fun goalNeedsExplicitCompletion(originalGoal: String): Boolean {
+        val lower = originalGoal.lowercase()
+        if (PhoneCommandParser.splitCompoundIntents(originalGoal).size > 1) return true
+        val hasSequencer = Regex("""\b(?:and\s+then|then|also|after\s+that)\b""").containsMatchIn(lower)
+        if (!hasSequencer) return false
+        val actionFamilies = listOf(
+            listOf("ssh", "termux", "remote", "container", "shell", "run", "execute"),
+            listOf("file", "write", "create", "edit", "read"),
+            listOf("open", "launch", "search", "tap", "type", "app"),
+            listOf("build", "test", "install", "check")
+        )
+        val matchedFamilies = actionFamilies.count { family -> family.any { lower.contains(it) } }
+        return matchedFamilies >= 2
+    }
+
     private fun isShallowToolCompletion(content: String, originalGoal: String): Boolean {
         val lower = content.lowercase()
         val goal = originalGoal.lowercase()
@@ -2778,6 +2906,21 @@ class AgentRuntime(
         }
     }
 
+    private fun compoundDirectPlan(segments: List<String>): DirectPlan? {
+        if (segments.size <= 1) return null
+        val plans = segments.map { segment ->
+            directPlan(segment) ?: return null
+        }
+        val actions = plans.flatMap { it.actions }
+        if (actions.isEmpty()) return null
+        return DirectPlan(
+            actions = actions,
+            approvalSummary = plans.joinToString(" then ") { it.approvalSummary },
+            successMessage = "Done. Completed ${plans.size} planned steps.",
+            failureMessage = "One of the planned steps failed."
+        )
+    }
+
     private suspend fun recordRuntimeError(sessionId: String, source: String, message: String, error: Throwable? = null) {
         if (error != null) {
             Log.e(TAG, "$source failed", error)
@@ -2799,6 +2942,25 @@ class AgentRuntime(
             type = "TaskFailed",
             author = "system",
             summary = message,
+            payload = payload
+        )
+    }
+
+    private suspend fun logAgentStop(sessionId: String, task: TaskEntity?, reason: String, detail: String = "") {
+        val payload = JSONObject()
+            .put("reason", reason)
+            .put("taskId", task?.id.orEmpty())
+            .put("detail", detail)
+            .toString(2)
+        console += "[agent_stop] $reason ${detail.take(180)}".trim()
+        if (console.size > 500) {
+            console.removeAt(0)
+        }
+        eventLog.append(
+            sessionId = sessionId,
+            type = "AgentStop",
+            author = "system",
+            summary = "Agent loop stopped: $reason",
             payload = payload
         )
     }

@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Phone Agent</string>
+    <string name="quick_tile_label">Phone Agent</string>
+    <string name="accessibility_service_label">Phone Agent Control</string>
+    <string name="accessibility_service_description">Allows Phone Agent to observe the active window and perform approved device actions after you enable the service.</string>
+</resources>
