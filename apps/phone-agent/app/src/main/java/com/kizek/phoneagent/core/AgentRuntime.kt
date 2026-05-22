@@ -161,11 +161,20 @@ class AgentRuntime(
                         id = question.id,
                         sessionId = sessionId,
                         prompt = question.prompt,
+                        title = question.prompt.substringBefore('\n').ifBlank { "Question" },
+                        description = question.prompt.substringAfter('\n', "").trim(),
                         type = question.type,
                         optionsCsv = question.options.joinToString("|"),
+                        allowCustom = question.type.contains("free", ignoreCase = true) || question.options.isEmpty(),
+                        allowSkip = true,
+                        source = "remote",
+                        relatedTaskId = null,
+                        relatedStepIndex = -1,
                         answer = null,
                         status = question.status,
-                        createdAt = question.createdAt
+                        state = question.status,
+                        createdAt = question.createdAt,
+                        answeredAt = null
                     )
                 )
             }
@@ -208,6 +217,11 @@ class AgentRuntime(
             if (prompt.lowercase().contains("minecraft") && (prompt.lowercase().contains("mod") || prompt.lowercase().contains("plugin"))) {
                 startMinecraftQuestions(sessionId)
                 taskQueue.update(task, "waiting", "Waiting for Minecraft build answers")
+                return
+            }
+
+            buildQuestionTaskPlan(prompt)?.let { plan ->
+                startQuestionTaskPlan(sessionId, task, prompt, plan)
                 return
             }
 
@@ -693,6 +707,163 @@ class AgentRuntime(
                 taskQueue.update(task, "done", "Question answer resume path executed")
                 return
             }
+            "issue6_question_creates_pending" -> {
+                val plan = buildQuestionTaskPlan("ask me a question then open youtube")
+                if (plan == null) {
+                    eventLog.append(sessionId, "MessageAdded", "system", "Issue #6 pending question test failed: no question plan.")
+                    taskQueue.update(task, "failed", "No question plan")
+                    return
+                }
+                startQuestionTaskPlan(sessionId, task, "ask me a question then open youtube", plan)
+                val pending = database.questions().listAll().firstOrNull {
+                    it.relatedTaskId == task.id && it.status == "pending" && it.source == "task_plan"
+                }
+                val ok = pending != null
+                eventLog.append(
+                    sessionId,
+                    "MessageAdded",
+                    "system",
+                    if (ok) "Issue #6 pending question test passed: real Question ${pending?.id} created." else "Issue #6 pending question test failed: no pending Question object."
+                )
+                if (!ok) taskQueue.update(task, "failed", "No pending Question object")
+                return
+            }
+            "issue6_typed_answer_routes_active" -> {
+                val before = System.currentTimeMillis()
+                val question = questionManager.ask(
+                    sessionId = sessionId,
+                    prompt = "Typed answer route question",
+                    type = "free_text",
+                    options = emptyList(),
+                    source = "developer_test"
+                )
+                sendMessage("typed answer for issue 6")
+                val answered = database.questions().get(question.id)?.answer == "typed answer for issue 6"
+                val leakedUserMessage = database.events().listForSession(sessionId).any {
+                    it.createdAt >= before && it.author == "user" && it.summary == "typed answer for issue 6"
+                }
+                val ok = answered && !leakedUserMessage
+                eventLog.append(
+                    sessionId,
+                    "MessageAdded",
+                    "system",
+                    if (ok) "Issue #6 typed answer routing passed." else "Issue #6 typed answer routing failed: answered=$answered leakedUserMessage=$leakedUserMessage"
+                )
+                taskQueue.update(task, if (ok) "done" else "failed", "Typed answer route check")
+                return
+            }
+            "issue6_no_message_added_final" -> {
+                eventLog.append(sessionId, "MessageAdded", "assistant", "Message Added")
+                val lastAssistant = database.events().listForSession(sessionId).lastOrNull { it.author == "assistant" && it.type == "MessageAdded" }
+                val ok = lastAssistant?.summary != "Message Added"
+                eventLog.append(
+                    sessionId,
+                    "MessageAdded",
+                    "system",
+                    if (ok) "Issue #6 Message Added guard passed: assistant summary='${lastAssistant?.summary}'." else "Issue #6 Message Added guard failed."
+                )
+                taskQueue.update(task, if (ok) "done" else "failed", "Message Added guard")
+                return
+            }
+            "issue6_typo_question_resume" -> {
+                val startedAt = System.currentTimeMillis()
+                val prompt = "yoyo aks me a qusten open youtube and als me another qusten"
+                val plan = buildQuestionTaskPlan(prompt)
+                if (plan == null) {
+                    eventLog.append(sessionId, "MessageAdded", "system", "Issue #6 typo flow failed: no question plan.")
+                    taskQueue.update(task, "failed", "No question plan")
+                    return
+                }
+                startQuestionTaskPlan(sessionId, task, prompt, plan)
+                val first = database.questions().listAll()
+                    .filter { it.relatedTaskId == task.id && it.status == "pending" }
+                    .minByOrNull { it.createdAt }
+                if (first == null) {
+                    eventLog.append(sessionId, "MessageAdded", "system", "Issue #6 typo flow failed: first question was not created.")
+                    taskQueue.update(task, "failed", "No first question")
+                    return
+                }
+                answerQuestion(first.id, "Yes, open YouTube")
+                val second = database.questions().listAll().firstOrNull {
+                    it.relatedTaskId == task.id && it.status == "pending" && it.relatedStepIndex > first.relatedStepIndex
+                }
+                val toolRan = database.events().listForSession(sessionId).any {
+                    it.createdAt >= startedAt && it.type == "ToolResult" && it.payload.contains("phone_open_app")
+                }
+                val ok = second != null && toolRan
+                eventLog.append(
+                    sessionId,
+                    "MessageAdded",
+                    "system",
+                    if (ok) "Issue #6 typo flow passed: resumed, ran phone_open_app, and created second question." else "Issue #6 typo flow failed: secondQuestion=${second != null} toolRan=$toolRan"
+                )
+                if (!ok) taskQueue.update(task, "failed", "Typo question resume check failed")
+                return
+            }
+            "issue6_step_advances_runs_tool" -> {
+                val startedAt = System.currentTimeMillis()
+                val prompt = "ask me a question then open youtube"
+                val plan = buildQuestionTaskPlan(prompt)
+                if (plan == null) {
+                    eventLog.append(sessionId, "MessageAdded", "system", "Issue #6 step advance failed: no question plan.")
+                    taskQueue.update(task, "failed", "No question plan")
+                    return
+                }
+                startQuestionTaskPlan(sessionId, task, prompt, plan)
+                val question = database.questions().listAll().firstOrNull { it.relatedTaskId == task.id && it.status == "pending" }
+                if (question == null) {
+                    eventLog.append(sessionId, "MessageAdded", "system", "Issue #6 step advance failed: no pending question.")
+                    taskQueue.update(task, "failed", "No pending question")
+                    return
+                }
+                answerQuestion(question.id, "Yes, open YouTube")
+                val planState = memoryStore.get("question_task_plan:${task.id}")
+                    ?.value
+                    ?.let { runCatching { JSONObject(it) }.getOrNull() }
+                val currentStepIndex = planState?.optInt("currentStepIndex", -1) ?: -1
+                val toolRan = database.events().listForSession(sessionId).any {
+                    it.createdAt >= startedAt && it.type == "ToolResult" && it.payload.contains("phone_open_app")
+                }
+                val ok = currentStepIndex >= 2 && toolRan
+                eventLog.append(
+                    sessionId,
+                    "MessageAdded",
+                    "system",
+                    if (ok) "Issue #6 step advance passed: currentStepIndex=$currentStepIndex and phone_open_app ran." else "Issue #6 step advance failed: currentStepIndex=$currentStepIndex toolRan=$toolRan"
+                )
+                taskQueue.update(task, if (ok) "done" else "failed", "Step advance check")
+                return
+            }
+            "issue6_missing_continuation_recovery" -> {
+                val question = questionManager.ask(
+                    sessionId = sessionId,
+                    prompt = "Before opening YouTube\nConfirm before I run: open youtube",
+                    type = "single_choice",
+                    options = listOf("Yes, open YouTube", "No, stop"),
+                    title = "Before opening YouTube",
+                    description = "Confirm before I run: open youtube",
+                    allowCustom = true,
+                    allowSkip = false,
+                    source = "task_plan",
+                    relatedTaskId = task.id,
+                    relatedStepIndex = 0
+                )
+                answerQuestion(question.id, "Yes, open YouTube")
+                val recovery = database.questions().listAll().firstOrNull {
+                    it.status == "pending" &&
+                        it.source == "missing_continuation_recovery" &&
+                        it.optionsCsv == "Retry task|Start over|Open YouTube anyway"
+                }
+                val ok = recovery != null
+                eventLog.append(
+                    sessionId,
+                    "MessageAdded",
+                    "system",
+                    if (ok) "Issue #6 missing continuation recovery passed." else "Issue #6 missing continuation recovery failed."
+                )
+                if (!ok) taskQueue.update(task, "failed", "Missing continuation recovery check")
+                return
+            }
             "typed_answer_routes_question" -> {
                 questionManager.ask(sessionId, "Typed answer route question", "single_choice", listOf("Termux", "SSH"))
                 sendMessage("Termux")
@@ -1055,7 +1226,17 @@ class AgentRuntime(
                 }
                 is AgentDirective.Question -> {
                     val prompt = listOf(directive.title, directive.description).filter { it.isNotBlank() }.joinToString("\n")
-                    val question = questionManager.ask(sessionId, prompt.ifBlank { "Question" }, directive.type, directive.options)
+                    val question = questionManager.ask(
+                        sessionId = sessionId,
+                        prompt = prompt.ifBlank { "Question" },
+                        type = directive.type,
+                        options = directive.options,
+                        title = directive.title.ifBlank { "Question" },
+                        description = directive.description,
+                        source = "agent_loop",
+                        relatedTaskId = task.id,
+                        relatedStepIndex = step
+                    )
                     rememberQuestionContinuation(
                         questionId = question.id,
                         taskId = task.id,
@@ -1279,10 +1460,13 @@ class AgentRuntime(
         when (result.errorType) {
             "search_field_not_found", "no_accessibility_root" -> {
                 val question = questionManager.ask(
-                    sessionId,
-                    "I opened the app, but I could not find search through accessibility. What should I do?",
-                    "single_choice",
-                    listOf("Retry observe", "Let me tap manually", "Use Chrome web search", "Stop")
+                    sessionId = sessionId,
+                    prompt = "I opened the app, but I could not find search through accessibility. What should I do?",
+                    type = "single_choice",
+                    options = listOf("Retry observe", "Let me tap manually", "Use Chrome web search", "Stop"),
+                    source = "tool_failure",
+                    relatedTaskId = task?.id,
+                    relatedStepIndex = 0
                 )
                 task?.let {
                     rememberQuestionContinuation(question.id, it.id, "tool_failure", "", failedAction?.tool.orEmpty(), failedAction?.args ?: JSONObject())
@@ -1295,10 +1479,13 @@ class AgentRuntime(
                     .take(5)
                     .toList()
                 val question = questionManager.ask(
-                    sessionId,
-                    "Multiple apps matched. Which one should I use?",
-                    "single_choice",
-                    options.ifEmpty { listOf("Cancel") }
+                    sessionId = sessionId,
+                    prompt = "Multiple apps matched. Which one should I use?",
+                    type = "single_choice",
+                    options = options.ifEmpty { listOf("Cancel") },
+                    source = "tool_failure",
+                    relatedTaskId = task?.id,
+                    relatedStepIndex = 0
                 )
                 task?.let {
                     rememberQuestionContinuation(question.id, it.id, "tool_failure", "", failedAction?.tool.orEmpty(), failedAction?.args ?: JSONObject())
@@ -1308,10 +1495,13 @@ class AgentRuntime(
             "termux_settings_missing", "termux_timeout", "termux_auth_failed", "termux_unreachable", "termux_port_closed", "ssh_error", "timeout" -> {
                 if (result.tool.startsWith("termux_")) {
                     val question = questionManager.ask(
-                        sessionId,
-                        "Termux SSH is not reachable. What should I do?",
-                        "single_choice",
-                        listOf("Show setup guide", "Retry connection", "Use SSH target", "Use laptop/server", "Stop task")
+                        sessionId = sessionId,
+                        prompt = "Termux SSH is not reachable. What should I do?",
+                        type = "single_choice",
+                        options = listOf("Show setup guide", "Retry connection", "Use SSH target", "Use laptop/server", "Stop task"),
+                        source = "termux_failure",
+                        relatedTaskId = task?.id,
+                        relatedStepIndex = 0
                     )
                     task?.let {
                         rememberQuestionContinuation(question.id, it.id, "termux_failure", "", failedAction?.tool.orEmpty(), failedAction?.args ?: JSONObject())
@@ -1704,6 +1894,384 @@ class AgentRuntime(
         )
     }
 
+    private suspend fun startQuestionTaskPlan(
+        sessionId: String,
+        task: TaskEntity,
+        originalPrompt: String,
+        plan: QuestionTaskPlan
+    ) {
+        val planKey = "question_task_plan:${task.id}"
+        val planJson = JSONObject()
+            .put("taskId", task.id)
+            .put("sessionId", sessionId)
+            .put("originalPrompt", originalPrompt)
+            .put("currentStepIndex", 0)
+            .put("steps", JSONArray(plan.steps.map { it.toJson() }))
+        memoryStore.remember(planKey, planJson.toString())
+        executeQuestionTaskPlan(sessionId, task, planKey, startIndex = 0)
+    }
+
+    private suspend fun executeQuestionTaskPlan(
+        sessionId: String,
+        task: TaskEntity,
+        planKey: String,
+        startIndex: Int
+    ) {
+        val plan = loadQuestionTaskPlan(planKey)
+        if (plan == null) {
+            showMissingContinuationRecovery(
+                sessionId = sessionId,
+                task = task,
+                originalPrompt = "",
+                previousAnswer = "",
+                relatedStepIndex = startIndex
+            )
+            return
+        }
+        val steps = plan.optJSONArray("steps") ?: JSONArray()
+        var currentStepIndex = startIndex.coerceAtLeast(0)
+        while (currentStepIndex < steps.length()) {
+            val step = steps.optJSONObject(currentStepIndex) ?: break
+            persistQuestionTaskPlanIndex(planKey, plan, currentStepIndex)
+            val stepNumber = currentStepIndex + 1
+            when (step.optString("type")) {
+                "question" -> {
+                    val title = step.optString("title", "Question").ifBlank { "Question" }
+                    val description = step.optString("description", "Answer to continue the task.")
+                    val options = step.optJSONArray("options").strings()
+                    val question = questionManager.ask(
+                        sessionId = sessionId,
+                        prompt = listOf(title, description).filter { it.isNotBlank() }.joinToString("\n"),
+                        type = step.optString("questionType", "single_choice"),
+                        options = options,
+                        title = title,
+                        description = description,
+                        allowCustom = step.optBoolean("allowCustom", true),
+                        allowSkip = step.optBoolean("allowSkip", false),
+                        source = "task_plan",
+                        relatedTaskId = task.id,
+                        relatedStepIndex = currentStepIndex
+                    )
+                    rememberQuestionContinuation(
+                        questionId = question.id,
+                        taskId = task.id,
+                        source = "task_plan",
+                        originalGoal = plan.optString("originalPrompt"),
+                        tool = "task_plan",
+                        args = JSONObject()
+                            .put("planKey", planKey)
+                            .put("stepIndex", currentStepIndex)
+                    )
+                    eventLog.append(
+                        sessionId,
+                        "QuestionRequested",
+                        "assistant",
+                        title,
+                        step.put("questionId", question.id).toString(2)
+                    )
+                    taskQueue.update(task, "waiting", "Waiting for answer at step $stepNumber / ${steps.length()}")
+                    return
+                }
+                "phone_command" -> {
+                    val command = step.optString("text").trim()
+                    taskQueue.update(task, "running", "currentStepIndex=$currentStepIndex running ${command.take(60)}")
+                    val results = executeQuestionTaskCommand(sessionId, task, command)
+                    currentStepIndex += 1
+                    persistQuestionTaskPlanIndex(planKey, plan, currentStepIndex)
+                    if (results == null || results.any { !it.success }) {
+                        taskQueue.update(task, "failed", results?.firstOrNull { !it.success }?.summary ?: "Question task step failed")
+                        return
+                    }
+                }
+                else -> {
+                    currentStepIndex += 1
+                    persistQuestionTaskPlanIndex(planKey, plan, currentStepIndex)
+                }
+            }
+        }
+        eventLog.append(
+            sessionId,
+            "MessageAdded",
+            "assistant",
+            "Done. Completed the requested steps.",
+            JSONObject()
+                .put("source", "question_task_plan")
+                .put("taskId", task.id)
+                .put("currentStepIndex", currentStepIndex)
+                .toString(2)
+        )
+        taskQueue.update(task, "done", "currentStepIndex=$currentStepIndex all question plan steps completed")
+    }
+
+    private suspend fun executeQuestionTaskCommand(
+        sessionId: String,
+        task: TaskEntity,
+        command: String
+    ): List<PhoneToolResult>? {
+        val plan = directPlan(command)
+        if (plan == null) {
+            recordRuntimeError(
+                sessionId = sessionId,
+                source = "question_task_plan",
+                message = "Question continuation could not turn '${command.take(80)}' into a phone command.",
+                error = null
+            )
+            return null
+        }
+        return runToolChain(sessionId, task, plan.actions, approvedChain = true)
+    }
+
+    private suspend fun resumeQuestionTaskPlan(
+        question: QuestionEntity,
+        answer: String,
+        task: TaskEntity?,
+        continuation: JSONObject
+    ) {
+        val resumableTask = task ?: question.relatedTaskId?.let { database.tasks().get(it) }
+        if (resumableTask == null) {
+            showMissingContinuationRecovery(
+                sessionId = question.sessionId,
+                task = null,
+                originalPrompt = continuation.optString("originalGoal"),
+                previousAnswer = answer,
+                relatedStepIndex = question.relatedStepIndex
+            )
+            return
+        }
+        if (isStopAnswer(answer)) {
+            taskQueue.update(resumableTask, "failed", "Stopped after question answer")
+            eventLog.append(question.sessionId, "MessageAdded", "assistant", "Stopped.")
+            return
+        }
+        val args = continuation.optJSONObject("args") ?: JSONObject()
+        val planKey = args.optString("planKey").ifBlank { "question_task_plan:${resumableTask.id}" }
+        val nextStep = args.optInt("stepIndex", question.relatedStepIndex).coerceAtLeast(0) + 1
+        val plan = loadQuestionTaskPlan(planKey)
+        if (plan == null) {
+            showMissingContinuationRecovery(
+                sessionId = question.sessionId,
+                task = resumableTask,
+                originalPrompt = continuation.optString("originalGoal"),
+                previousAnswer = answer,
+                relatedStepIndex = question.relatedStepIndex
+            )
+            return
+        }
+        persistQuestionTaskPlanIndex(planKey, plan, nextStep)
+        taskQueue.update(resumableTask, "running", "currentStepIndex=$nextStep resuming after answer")
+        executeQuestionTaskPlan(question.sessionId, resumableTask, planKey, nextStep)
+    }
+
+    private suspend fun loadQuestionTaskPlan(planKey: String): JSONObject? {
+        return memoryStore.get(planKey)
+            ?.value
+            ?.let { runCatching { JSONObject(it) }.getOrNull() }
+    }
+
+    private suspend fun persistQuestionTaskPlanIndex(planKey: String, plan: JSONObject, currentStepIndex: Int) {
+        plan.put("currentStepIndex", currentStepIndex)
+        memoryStore.remember(planKey, plan.toString())
+    }
+
+    private suspend fun showMissingContinuationRecovery(
+        sessionId: String,
+        task: TaskEntity?,
+        originalPrompt: String,
+        previousAnswer: String,
+        relatedStepIndex: Int
+    ) {
+        val description = "I saved your answer, but the task continuation was not available. Choose how to recover."
+        val recovery = questionManager.ask(
+            sessionId = sessionId,
+            prompt = "Task continuation missing\n$description",
+            type = "single_choice",
+            options = listOf("Retry task", "Start over", "Open YouTube anyway"),
+            title = "Task continuation missing",
+            description = description,
+            allowCustom = false,
+            allowSkip = false,
+            source = "missing_continuation_recovery",
+            relatedTaskId = task?.id,
+            relatedStepIndex = relatedStepIndex
+        )
+        rememberQuestionContinuation(
+            questionId = recovery.id,
+            taskId = task?.id.orEmpty(),
+            source = "missing_continuation_recovery",
+            originalGoal = originalPrompt,
+            tool = "phone_open_app",
+            args = JSONObject()
+                .put("fallbackApp", "youtube")
+                .put("previousAnswer", previousAnswer)
+        )
+        eventLog.append(
+            sessionId,
+            "QuestionRequested",
+            "system",
+            "Task continuation recovery needed.",
+            JSONObject()
+                .put("questionId", recovery.id)
+                .put("options", JSONArray(listOf("Retry task", "Start over", "Open YouTube anyway")))
+                .toString(2)
+        )
+        task?.let { taskQueue.update(it, "waiting", "Missing continuation recovery") }
+    }
+
+    private suspend fun resumeMissingContinuationRecovery(
+        question: QuestionEntity,
+        answer: String,
+        task: TaskEntity?,
+        continuation: JSONObject?
+    ) {
+        val lower = answer.lowercase()
+        val resumableTask = task ?: question.relatedTaskId?.let { database.tasks().get(it) }
+        when {
+            lower.contains("youtube") || lower.contains("anyway") -> {
+                val recoveryTask = resumableTask ?: taskQueue.start(question.sessionId, "Recovery: open YouTube", WorkerMode.PHONE_LOCAL)
+                taskQueue.update(recoveryTask, "running", "Opening YouTube from recovery")
+                val results = runToolChain(
+                    sessionId = question.sessionId,
+                    task = recoveryTask,
+                    actions = listOf(ToolAction("phone_open_app", JSONObject().put("app", "youtube"), WorkerMode.PHONE_LOCAL)),
+                    approvedChain = true
+                )
+                taskQueue.update(recoveryTask, if (results.all { it.success }) "done" else "failed", results.lastOrNull()?.summary ?: "Recovery action finished")
+            }
+            lower.contains("retry") && resumableTask != null -> {
+                val originalGoal = continuation?.optString("originalGoal").orEmpty()
+                taskQueue.update(resumableTask, "running", "Retrying task after missing continuation")
+                if (originalGoal.isNotBlank()) {
+                    runAgentLoop(question.sessionId, resumableTask, originalGoal)
+                } else {
+                    taskQueue.update(resumableTask, "failed", "Retry requested, but original task text was not available")
+                }
+            }
+            else -> {
+                resumableTask?.let { taskQueue.update(it, "failed", "Start over requested after missing continuation") }
+                eventLog.append(question.sessionId, "MessageAdded", "assistant", "Start over by sending the request again.")
+            }
+        }
+    }
+
+    private fun buildQuestionTaskPlan(input: String): QuestionTaskPlan? {
+        val normalized = normalizeQuestionTaskText(input)
+        val questionMatches = questionRequestRegex.findAll(normalized).toList()
+        if (questionMatches.isEmpty()) return null
+
+        val steps = mutableListOf<QuestionTaskStep>()
+        var cursor = 0
+        questionMatches.forEachIndexed { index, match ->
+            addCommandStepIfPresent(normalized.substring(cursor, match.range.first), steps)
+
+            val nextStart = questionMatches.getOrNull(index + 1)?.range?.first ?: normalized.length
+            val commandAfterQuestion = cleanQuestionPlanSegment(normalized.substring(match.range.last + 1, nextStart))
+            val title = questionTitleFor(commandAfterQuestion, isFollowUpQuestion = index > 0)
+            val description = if (commandAfterQuestion.isNotBlank()) {
+                "Confirm before I run: $commandAfterQuestion"
+            } else {
+                "Answer to continue the task."
+            }
+            val yesOption = if (commandAfterQuestion.isNotBlank()) {
+                "Yes, ${commandActionLabel(commandAfterQuestion)}"
+            } else {
+                "Continue"
+            }
+            steps += QuestionStep(
+                title = title,
+                description = description,
+                questionType = "single_choice",
+                options = listOf(yesOption, "No, stop", "Start over"),
+                allowCustom = true,
+                allowSkip = false
+            )
+            cursor = match.range.last + 1
+        }
+        addCommandStepIfPresent(normalized.substring(cursor), steps)
+        return steps.takeIf { it.any { step -> step is QuestionStep } }?.let { QuestionTaskPlan(it) }
+    }
+
+    private fun addCommandStepIfPresent(segment: String, steps: MutableList<QuestionTaskStep>) {
+        val command = cleanQuestionPlanSegment(segment)
+        if (command.isBlank()) return
+        if (command in setOf("yo", "yoyo", "please")) return
+        if (directPlan(command) != null) {
+            steps += PhoneCommandStep(command)
+        }
+    }
+
+    private fun normalizeQuestionTaskText(input: String): String {
+        val tokens = input
+            .lowercase()
+            .replace(Regex("""[\u201c\u201d"':;,]+"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+            .split(" ")
+        return tokens.joinToString(" ") { token ->
+            when (token.trim('.', '!', '?')) {
+                "aks", "askk", "askd", "aske", "als" -> "ask"
+                "qusten", "qustion", "questen", "quesiton", "queston", "qusetion" -> "question"
+                "pls" -> "please"
+                else -> token.trim('.', '!', '?')
+            }
+        }.replace(Regex("""\s+"""), " ").trim()
+    }
+
+    private fun cleanQuestionPlanSegment(segment: String): String {
+        var clean = segment
+            .replace(Regex("""\b(?:please|yo|yoyo)\b"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+        var changed: Boolean
+        do {
+            val previous = clean
+            clean = clean
+                .replace(Regex("""^(?:and|then|also|after that)\s+"""), "")
+                .replace(Regex("""\s+(?:and|then|also|after that)$"""), "")
+                .trim()
+            changed = clean != previous
+        } while (changed)
+        return clean
+    }
+
+    private fun questionTitleFor(command: String, isFollowUpQuestion: Boolean): String {
+        if (command.isBlank()) return if (isFollowUpQuestion) "Another question" else "Question"
+        val parsed = PhoneCommandParser.parse(command)
+        if (parsed != null && parsed.intent == PhoneCommandParser.PhoneIntent.OPEN_APP && parsed.app.isNotBlank()) {
+            return "Before opening ${displayAppName(parsed.app)}"
+        }
+        return "Before continuing"
+    }
+
+    private fun commandActionLabel(command: String): String {
+        val parsed = PhoneCommandParser.parse(command)
+        if (parsed != null && parsed.intent == PhoneCommandParser.PhoneIntent.OPEN_APP && parsed.app.isNotBlank()) {
+            return "open ${displayAppName(parsed.app)}"
+        }
+        return command
+    }
+
+    private fun displayAppName(app: String): String {
+        return when (app.lowercase()) {
+            "youtube" -> "YouTube"
+            "chrome" -> "Chrome"
+            "settings" -> "Settings"
+            "google" -> "Google"
+            "discord" -> "Discord"
+            "gmail" -> "Gmail"
+            "messages" -> "Messages"
+            else -> app.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
+    }
+
+    private fun isStopAnswer(answer: String): Boolean {
+        val lower = answer.lowercase().trim()
+        return lower.startsWith("no") ||
+            lower.contains("stop") ||
+            lower.contains("cancel") ||
+            lower.contains("do not") ||
+            lower.contains("don't")
+    }
+
     private suspend fun askPhoneCommandQuestion(
         sessionId: String,
         task: TaskEntity,
@@ -1714,10 +2282,15 @@ class AgentRuntime(
             else -> "Which app did you mean for \"${parsed.appNameRaw}\"?"
         }
         val question = questionManager.ask(
-            sessionId,
-            prompt,
-            "single_choice",
-            listOf("YouTube", "Chrome", "Google", "Settings", "Discord", "Gmail", "Messages", "Something else", "Stop")
+            sessionId = sessionId,
+            prompt = prompt,
+            type = "single_choice",
+            options = listOf("YouTube", "Chrome", "Google", "Settings", "Discord", "Gmail", "Messages", "Something else", "Stop"),
+            title = prompt,
+            description = "Answer to continue this phone command.",
+            source = "phone_parser_clarify",
+            relatedTaskId = task.id,
+            relatedStepIndex = 0
         )
         rememberQuestionContinuation(
             questionId = question.id,
@@ -1762,6 +2335,12 @@ class AgentRuntime(
             ?: database.tasks().listAll().firstOrNull { it.sessionId == question.sessionId && it.state == "waiting" }
 
         when (continuation?.optString("source")) {
+            "task_plan" -> {
+                resumeQuestionTaskPlan(question, answer, task, continuation)
+            }
+            "missing_continuation_recovery" -> {
+                resumeMissingContinuationRecovery(question, answer, task, continuation)
+            }
             "agent_loop" -> {
                 if (task != null) {
                     taskQueue.update(task, "running", "Resuming after answer")
@@ -1815,6 +2394,15 @@ class AgentRuntime(
             else -> {
                 if (question.prompt.startsWith("Minecraft")) {
                     maybeResumeMinecraftFlow(question.sessionId)
+                } else if (question.source == "task_plan" || question.relatedTaskId != null) {
+                    val relatedTask = task ?: question.relatedTaskId?.let { database.tasks().get(it) }
+                    showMissingContinuationRecovery(
+                        sessionId = question.sessionId,
+                        task = relatedTask,
+                        originalPrompt = question.prompt,
+                        previousAnswer = answer,
+                        relatedStepIndex = question.relatedStepIndex
+                    )
                 } else {
                     if (task != null && task.state == "waiting") {
                         taskQueue.update(task, "done", "Question answered: $answer")
@@ -1914,7 +2502,7 @@ class AgentRuntime(
         val cleaned = answer.trim()
         if (cleaned.isBlank()) return null
         val options = question.optionsCsv.split("|").filter { it.isNotBlank() }
-        val free = question.type.contains("free", ignoreCase = true) || options.isEmpty()
+        val free = question.allowCustom || question.type.contains("free", ignoreCase = true) || options.isEmpty()
         if (free) return cleaned
         options.firstOrNull { it.equals(cleaned, ignoreCase = true) }?.let { return it }
         options.firstOrNull { option ->
@@ -2421,6 +3009,45 @@ class AgentRuntime(
             }
         }
     }
+}
+
+private val questionRequestRegex = Regex(
+    """\bask\s+me\s+(?:(?:a|one|another|second)\s+)?question\b|\bask\s+(?:me\s+)?before\s+continuing\b""",
+    RegexOption.IGNORE_CASE
+)
+
+private data class QuestionTaskPlan(
+    val steps: List<QuestionTaskStep>
+)
+
+private sealed class QuestionTaskStep {
+    abstract fun toJson(): JSONObject
+}
+
+private data class QuestionStep(
+    val title: String,
+    val description: String,
+    val questionType: String,
+    val options: List<String>,
+    val allowCustom: Boolean,
+    val allowSkip: Boolean
+) : QuestionTaskStep() {
+    override fun toJson(): JSONObject = JSONObject()
+        .put("type", "question")
+        .put("title", title)
+        .put("description", description)
+        .put("questionType", questionType)
+        .put("options", JSONArray(options))
+        .put("allowCustom", allowCustom)
+        .put("allowSkip", allowSkip)
+}
+
+private data class PhoneCommandStep(
+    val text: String
+) : QuestionTaskStep() {
+    override fun toJson(): JSONObject = JSONObject()
+        .put("type", "phone_command")
+        .put("text", text)
 }
 
 private data class ToolAction(
