@@ -1,6 +1,7 @@
 package com.kizek.phoneagent.ui.components
 
 import android.text.format.DateFormat
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
@@ -85,6 +86,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -234,6 +236,7 @@ fun GlassCard(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+
                         if (subtitle != null) {
                             Text(
                                 subtitle,
@@ -739,13 +742,27 @@ fun DetailsBottomSheet(
     var tab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Summary", "Args", "Output", "Error", "Approval", "Retry", "Logs", "Raw")
     val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(bottom = 26.dp)) {
             Column(Modifier.padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title.ifBlank { parsed.tool.ifBlank { "Details" } }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(parsed.statusLine, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = { clipboard.setText(AnnotatedString(parsed.raw.ifBlank { body })) }) {
+                    OutlinedButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(buildDebugBundle(title = title, details = parsed, fallbackRaw = body, includeRaw = false)))
+                            Toast.makeText(context, "Copied debug details", Toast.LENGTH_SHORT).show()
+                        }
+                    ) {
+                        Text("Copy summary")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(buildDebugBundle(title = title, details = parsed, fallbackRaw = body, includeRaw = true)))
+                            Toast.makeText(context, "Copied debug details", Toast.LENGTH_SHORT).show()
+                        }
+                    ) {
                         Text("Copy raw")
                     }
                 }
@@ -1027,6 +1044,10 @@ private data class ToolEventUi(
 private data class DetailUi(
     val tool: String,
     val statusLine: String,
+    val timestamp: String,
+    val provider: String,
+    val worker: String,
+    val stopReason: String,
     val summary: String,
     val args: String,
     val output: String,
@@ -1065,7 +1086,11 @@ private fun detailsFrom(body: String): DetailUi {
         val summary = json.cleanString("summary")
         val success = if (json.has("success")) json.optBoolean("success") else null
         val tool = json.cleanString("tool")
+        val provider = json.cleanString("providerUsed")
+            .ifBlank { json.cleanString("provider") }
+            .ifBlank { json.cleanString("modelProvider") }
         val worker = json.cleanString("workerUsed")
+        val stopReason = json.cleanString("stopReason")
         val timestamp = json.optLong("timestamp", 0L).takeIf { it > 0L }?.let { DateFormat.format("HH:mm:ss", it).toString() }.orEmpty()
         val args = json.optJSONObject("args")?.toString(2).orEmpty()
         val stdout = json.cleanString("stdout")
@@ -1081,13 +1106,20 @@ private fun detailsFrom(body: String): DetailUi {
             tool = tool,
             statusLine = listOfNotNull(
                 success?.let { if (it) "Success" else "Needs attention" },
+                provider.takeIf { it.isNotBlank() }?.let { "Provider $it" },
                 worker.takeIf { it.isNotBlank() }?.let { "Worker $it" },
                 timestamp.takeIf { it.isNotBlank() }?.let { "At $it" }
             ).joinToString(" · ").ifBlank { "Details" },
+            timestamp = timestamp,
+            provider = provider,
+            worker = worker,
+            stopReason = stopReason,
             summary = buildString {
                 appendLine(summary.ifBlank { "No summary." })
                 if (tool.isNotBlank()) appendLine("tool: $tool")
+                if (provider.isNotBlank()) appendLine("provider: $provider")
                 if (worker.isNotBlank()) appendLine("worker: $worker")
+                if (stopReason.isNotBlank()) appendLine("stopReason: $stopReason")
                 if (timestamp.isNotBlank()) appendLine("timestamp: $timestamp")
             }.trimEnd(),
             args = args,
@@ -1115,6 +1147,10 @@ private fun detailsFrom(body: String): DetailUi {
     return DetailUi(
         tool = "",
         statusLine = "Text details",
+        timestamp = "",
+        provider = "",
+        worker = "",
+        stopReason = "",
         summary = compactTextSummary(body),
         args = "",
         output = body.take(8_000),
@@ -1153,6 +1189,53 @@ private fun compactTextSummary(body: String): String {
         .joinToString("\n")
         .ifBlank { body.lineSequence().take(8).joinToString("\n") }
         .take(1_500)
+}
+
+private fun buildDebugBundle(
+    title: String,
+    details: DetailUi,
+    fallbackRaw: String,
+    includeRaw: Boolean
+): String {
+    val source = details.tool.ifBlank { title.ifBlank { "Unknown source" } }
+    val timestamp = details.timestamp.ifBlank { DateFormat.format("yyyy-MM-dd HH:mm:ss", System.currentTimeMillis()).toString() }
+    val shortSummary = details.summary.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().ifBlank { "No summary." }
+    val rawPayload = details.raw.ifBlank { fallbackRaw }
+    val bundle = buildString {
+        appendLine("timestamp: $timestamp")
+        appendLine("source: $source")
+        appendLine("provider: ${details.provider.ifBlank { "unknown" }}")
+        appendLine("worker: ${details.worker.ifBlank { "unknown" }}")
+        appendLine("stopReason: ${details.stopReason.ifBlank { "n/a" }}")
+        appendLine("summary: $shortSummary")
+        if (includeRaw) {
+            appendLine()
+            appendLine("raw:")
+            appendLine(rawPayload)
+        }
+    }.trimEnd()
+    return redactSensitiveText(bundle)
+}
+
+private fun redactSensitiveText(input: String): String {
+    val sensitiveFieldPattern = "(?:api[_-]?key|password|passwd|token|secret|authorization|cookie|ssh[_-]?key|private[_-]?key)"
+    return input
+        .replace(
+            Regex("-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
+            "[REDACTED_PRIVATE_KEY]"
+        )
+        .replace(
+            Regex("(?i)(Bearer\\s+)[A-Za-z0-9._\\-+/=]+"),
+            "$1[REDACTED]"
+        )
+        .replace(
+            Regex("(?im)(\"?$sensitiveFieldPattern\"?\\s*[:=]\\s*\")([^\"]+)(\")"),
+            "$1[REDACTED]$3"
+        )
+        .replace(
+            Regex("(?im)(\"?$sensitiveFieldPattern\"?\\s*[:=]\\s*)([^\\n,\\s]+)"),
+            "$1[REDACTED]"
+        )
 }
 
 private fun visibleEventText(event: EventEntity): String {
