@@ -173,6 +173,7 @@ fun SettingsScreen(
             item { SettingJump("Approvals", "Risk-gated tool execution and pending grants.", "approvals", onOpenSettingsTarget) }
 
             section("Developer Tests")
+            item { SettingJump("Diagnostics", "Readiness snapshot for providers and runtime paths.", "diagnostics", onOpenSettingsTarget) }
             item {
                 GlassCard(title = "Developer Tests", subtitle = "Run provider, local model, PRoot, Termux, SSH, fallback, and Minecraft flow checks.", icon = "TEST", status = "Available") {
                     Button(onClick = { onOpenSettingsTarget("developer") }, modifier = Modifier.fillMaxWidth()) {

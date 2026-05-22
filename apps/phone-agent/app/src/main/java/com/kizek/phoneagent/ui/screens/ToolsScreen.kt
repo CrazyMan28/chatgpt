@@ -320,6 +320,7 @@ private fun QuickLinks(onOpenSecondary: (String) -> Unit) {
         "AI Fallback" to "provider-fallback",
         "Local Model" to "local-model",
         "Runtime" to "runtime",
+        "Diagnostics" to "diagnostics",
         "PRoot" to "container-settings",
         "Termux" to "termux",
         "SSH" to "ssh",

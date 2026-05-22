@@ -44,6 +44,7 @@ import com.kizek.phoneagent.ui.screens.ChatScreen
 import com.kizek.phoneagent.ui.screens.ContainerScreen
 import com.kizek.phoneagent.ui.screens.ContainerSettingsScreen
 import com.kizek.phoneagent.ui.screens.ConsoleScreen
+import com.kizek.phoneagent.ui.screens.DiagnosticsScreen
 import com.kizek.phoneagent.ui.screens.DeveloperTestsScreen
 import com.kizek.phoneagent.ui.screens.DeviceControlScreen
 import com.kizek.phoneagent.ui.screens.ExecutionFallbackSettingsScreen
@@ -97,6 +98,7 @@ private enum class AppScreen(val title: String) {
     TERMUX_SETTINGS("Termux Bridge"),
     SSH_SETTINGS("SSH Agent"),
     FALLBACK_SETTINGS("Fallback Order"),
+    DIAGNOSTICS("Diagnostics"),
     DEVELOPER("Developer Tests")
 }
 
@@ -405,6 +407,32 @@ fun AppRoot(app: PhoneAgentApplication) {
             AppScreen.TERMUX_SETTINGS -> TermuxBridgeSettingsScreen(app = app, modifier = modifier)
             AppScreen.SSH_SETTINGS -> SshAgentSettingsScreen(app = app, modifier = modifier)
             AppScreen.FALLBACK_SETTINGS -> ExecutionFallbackSettingsScreen(app = app, modifier = modifier)
+            AppScreen.DIAGNOSTICS -> DiagnosticsScreen(
+                app = app,
+                onOpenTarget = { target ->
+                    screen = when (target) {
+                        "mistral" -> AppScreen.MISTRAL_SETTINGS
+                        "openai-compatible" -> AppScreen.OPENAI_COMPAT_SETTINGS
+                        "local-http" -> AppScreen.LOCAL_HTTP_SETTINGS
+                        "ollama" -> AppScreen.OLLAMA_SETTINGS
+                        "provider-fallback" -> AppScreen.PROVIDER_FALLBACK_SETTINGS
+                        "local-model" -> AppScreen.LOCAL_MODEL_SETTINGS
+                        "runtime" -> AppScreen.RUNTIME_SETTINGS
+                        "container-settings" -> AppScreen.CONTAINER_SETTINGS
+                        "termux" -> AppScreen.TERMUX_SETTINGS
+                        "ssh" -> AppScreen.SSH_SETTINGS
+                        "fallback" -> AppScreen.FALLBACK_SETTINGS
+                        "device" -> AppScreen.DEVICE
+                        "voice" -> AppScreen.VOICE
+                        "assistant" -> AppScreen.ASSISTANT
+                        "approvals" -> AppScreen.APPROVALS
+                        "developer" -> AppScreen.DEVELOPER
+                        "settings" -> AppScreen.SETTINGS
+                        else -> AppScreen.DIAGNOSTICS
+                    }
+                },
+                modifier = modifier
+            )
             AppScreen.SETTINGS -> SettingsScreen(
                 app = app,
                 onOpenSettingsTarget = { target ->
@@ -425,6 +453,7 @@ fun AppRoot(app: PhoneAgentApplication) {
                         "assistant" -> AppScreen.ASSISTANT
                         "approvals" -> AppScreen.APPROVALS
                         "developer" -> AppScreen.DEVELOPER
+                        "diagnostics" -> AppScreen.DIAGNOSTICS
                         else -> AppScreen.SETTINGS
                     }
                 },
