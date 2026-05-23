@@ -1,0 +1,19 @@
+{
+  "name": "space-ship-tui",
+  "version": "1.0.0",
+  "description": "A terminal-based spaceship game",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["terminal", "game", "spaceship", "tui"],
+  "author": "Assistant",
+  "license": "MIT",
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
+    "nodemon": "^3.0.2"
+  }
+}

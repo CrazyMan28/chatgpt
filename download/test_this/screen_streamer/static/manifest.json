@@ -1,0 +1,23 @@
+{
+  "name": "Screen Streamer",
+  "short_name": "Streamer",
+  "description": "A lightweight screen streaming application with quality controls and dark mode support.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007BFF",
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "icons": [
+    {
+      "src": "/static/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

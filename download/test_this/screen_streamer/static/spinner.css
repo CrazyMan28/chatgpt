@@ -1,0 +1,98 @@
+/**
+ * Loading spinner styles for the screen streamer.
+ * Includes accessibility attributes for screen readers, keyboard navigation,
+ * focus management, dark mode support, and reduced motion preferences.
+ */
+.spinner {
+    display: none;
+    width: 40px;
+    height: 40px;
+    margin: 20px auto;
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top-color: #007BFF;
+    /* Respect reduced motion preferences */
+    animation: spin 1s ease-in-out infinite;
+    /* Accessibility: Hide spinner from screen readers when not visible */
+    aria-hidden: true;
+    /* Ensure spinner is focusable for keyboard navigation */
+    tab-index: -1;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+    .spinner {
+        animation: none;
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-top-color: #007BFF;
+        border-right-color: #007BFF;
+    }
+}
+
+#video-container.loading #screen-stream {
+    display: none;
+}
+
+#video-container.loading .spinner {
+    display: block;
+    /* Accessibility: Announce spinner to screen readers when visible */
+    aria-hidden: false;
+    aria-live: polite;
+    aria-label: "Loading screen stream...";
+    role: status;
+    /* Ensure spinner is focusable when visible */
+    tab-index: 0;
+    /* Add outline for keyboard focus visibility */
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+}
+
+#video-container.loading .spinner:focus {
+    outline: 2px solid #0056b3;
+    outline-offset: 2px;
+}
+
+/* Dark mode spinner support */
+@media (prefers-color-scheme: dark) {
+    .spinner {
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-top-color: #0056b3; /* Darker blue for contrast */
+    }
+    
+    #video-container.loading .spinner:focus {
+        outline: 2px solid #007BFF;
+    }
+    
+    /* Reduced motion in dark mode */
+    @media (prefers-reduced-motion: reduce) {
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #0056b3;
+            border-right-color: #0056b3;
+        }
+    }
+}
+
+/* Force dark mode if the user has explicitly set it via a class */
+.dark-mode .spinner {
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #0056b3;
+}
+
+.dark-mode #video-container.loading .spinner:focus {
+    outline: 2px solid #007BFF;
+}
+
+/* Reduced motion in forced dark mode */
+.dark-mode .spinner {
+    @media (prefers-reduced-motion: reduce) {
+        animation: none;
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-top-color: #0056b3;
+        border-right-color: #0056b3;
+    }
+}

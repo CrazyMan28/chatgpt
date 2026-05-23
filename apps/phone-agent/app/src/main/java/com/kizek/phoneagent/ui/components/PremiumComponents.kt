@@ -587,11 +587,40 @@ fun ErrorMessageCard(
     modifier: Modifier = Modifier
 ) {
     val body = event.payload.ifBlank { event.summary }
-    val setupUseful = event.summary.contains("Mistral", ignoreCase = true) ||
-        event.summary.contains("model", ignoreCase = true) ||
-        event.summary.contains("permission", ignoreCase = true) ||
-        event.summary.contains("configured", ignoreCase = true) ||
-        event.summary.contains("setup", ignoreCase = true)
+    val lower = event.summary.lowercase()
+    val setupUseful = lower.contains("mistral") ||
+        lower.contains("model") ||
+        lower.contains("permission") ||
+        lower.contains("configured") ||
+        lower.contains("setup") ||
+        lower.contains("provider") ||
+        lower.contains("ssh") ||
+        lower.contains("termux") ||
+        lower.contains("proot") ||
+        lower.contains("accessibility") ||
+        lower.contains("screen") ||
+        lower.contains("token") ||
+        lower.contains("key") ||
+        lower.contains("auth")
+    val helpText = when {
+        lower.contains("accessibility") || lower.contains("disabled") && lower.contains("accessibility") ->
+            "Phone Agent's AccessibilityService is not running. Open Settings > Device to enable it."
+        lower.contains("screen") && (lower.contains("capture") || lower.contains("permission")) ->
+            "Screen capture permission is missing. Open Settings > Device to grant MediaProjection access."
+        lower.contains("termux") && (lower.contains("connect") || lower.contains("unreachable") || lower.contains("not")) ->
+            "Termux bridge is not reachable. Check that sshd is running in Termux and the host/port are correct in Settings > Termux."
+        lower.contains("ssh") && (lower.contains("target") || lower.contains("not configure")) ->
+            "No SSH targets are configured. Add a server in Settings > SSH."
+        lower.contains("ssh") && (lower.contains("connect") || lower.contains("unreachable") || lower.contains("refused")) ->
+            "SSH target is unreachable. Check that the server is online and the credentials are correct."
+        lower.contains("proot") || lower.contains("rootfs") || lower.contains("container") ->
+            "PRoot/rootfs runtime is missing or incomplete. Open Settings > Container to install it."
+        lower.contains("provider") && (lower.contains("offline") || lower.contains("unavailable") || lower.contains("down")) ->
+            "Your AI model provider is offline or unreachable. Local phone tools (files, shell, app control) still work."
+        lower.contains("provider") || lower.contains("model") || lower.contains("key") || lower.contains("token") || lower.contains("auth") || lower.contains("mistral") ->
+            "No AI model provider is configured or the API key is missing. Configure one in Settings > Providers."
+        else -> null
+    }
     GlassCard(
         title = if (setupUseful) "Needs setup" else "Task stopped",
         subtitle = event.summary.ifBlank { "Something failed." },
@@ -606,7 +635,15 @@ fun ErrorMessageCard(
             }
             OutlinedButton(onClick = { onDetails(event.type, body) }) { Text("Details") }
         }
-    )
+    ) {
+        if (helpText != null) {
+            Text(
+                helpText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1269,7 +1306,20 @@ private fun redactSensitiveText(input: String): String {
 }
 
 private fun visibleEventText(event: EventEntity): String {
-    if (event.type == "TaskFailed") return event.summary.ifBlank { "Task failed." }
+    if (event.type == "TaskFailed") {
+        val s = event.summary.ifBlank { "Task failed." }
+        val lower = s.lowercase()
+        return when {
+            lower.contains("accessibility") -> "Accessibility not enabled: app control is unavailable. Local tools still work."
+            lower.contains("screen") && (lower.contains("capture") || lower.contains("permission")) -> "Screen capture missing: visual observation unavailable. Text commands still work."
+            lower.contains("provider") && (lower.contains("offline") || lower.contains("unavailable")) -> "AI provider offline: local phone commands still work. Configure a fallback in Settings."
+            lower.contains("model") || lower.contains("mistral") || lower.contains("key") -> "Model provider needs setup: configure an API key in Settings."
+            lower.contains("ssh") && lower.contains("target") -> "No SSH targets: add server details in Settings > SSH."
+            lower.contains("termux") -> "Termux setup needed: check Settings > Termux for connection details."
+            lower.contains("proot") || lower.contains("rootfs") || lower.contains("container") -> "PRoot runtime missing: install in Settings > Container."
+            else -> s
+        }
+    }
     if (event.type == "ApprovalRequested") return event.summary.ifBlank { "Waiting for approval." }
     if (event.type == "QuestionRequested") return event.summary.ifBlank { "Waiting for an answer." }
     if (event.type == "WorkerRoute") return event.summary.ifBlank { "Worker route changed." }

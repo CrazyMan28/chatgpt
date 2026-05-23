@@ -1,0 +1,1 @@
+{"version":3,"file":"copilot-client.d.ts","sourceRoot":"","sources":["../../src/models/copilot-client.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EACV,kBAAkB,EAClB,WAAW,EAEX,YAAY,EACZ,aAAa,EACd,MAAM,mBAAmB,CAAC;AAyB3B,qBAAa,qBAAsB,YAAW,WAAW;IAC3C,OAAO,CAAC,QAAQ,CAAC,MAAM;gBAAN,MAAM,EAAE,kBAAkB;IAEjD,QAAQ,CAAC,OAAO,EAAE,YAAY,GAAG,OAAO,CAAC,aAAa,CAAC;CAsB9D"}

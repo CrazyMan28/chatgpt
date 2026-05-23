@@ -1,0 +1,1 @@
+{"version":3,"file":"FooterHints.d.ts","sourceRoot":"","sources":["../../src/components/FooterHints.tsx"],"names":[],"mappings":"AAAA,OAAO,KAAK,MAAM,OAAO,CAAC;AAG1B,OAAO,KAAK,EAAE,QAAQ,EAAE,MAAM,aAAa,CAAC;AAE5C,wBAAgB,WAAW,CAAC,EAC1B,eAAe,EACf,KAAK,EACN,EAAE;IACD,eAAe,EAAE,OAAO,CAAC;IACzB,KAAK,EAAE,QAAQ,CAAC;CACjB,GAAG,KAAK,CAAC,GAAG,CAAC,OAAO,CASpB"}

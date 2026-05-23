@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +53,9 @@ import com.kizek.phoneagent.ui.components.AssistantBubble
 import com.kizek.phoneagent.ui.components.AssistantVisualState
 import com.kizek.phoneagent.ui.components.ChatInputBar
 import com.kizek.phoneagent.ui.components.EmptyStateCard
+import com.kizek.phoneagent.ui.components.EmptyStateDetailCard
+import com.kizek.phoneagent.ui.components.EmptyStateInfo
+import com.kizek.phoneagent.ui.components.EmptyStateType
 import com.kizek.phoneagent.ui.components.ErrorMessageCard
 import com.kizek.phoneagent.ui.components.GlassCard
 import com.kizek.phoneagent.ui.components.GlassSurface
@@ -149,6 +153,11 @@ fun ChatScreen(
     val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startVoice() else voiceLine = "Microphone permission denied"
     }
+    var capability by remember { mutableStateOf<com.kizek.phoneagent.core.RuntimeCapabilityStatus?>(null) }
+    LaunchedEffect(app) {
+        capability = runCatching { app.runtime.toolRegistry.runtimeCapabilityStatus() }.getOrNull()
+    }
+    val cap = capability
 
     AppBackground(modifier = modifier.fillMaxSize()) {
         Column(
@@ -215,6 +224,68 @@ fun ChatScreen(
                                 )
                             }
                         )
+                    }
+                    if (cap != null) {
+                        item {
+                            if (!cap.mistralConfigured) {
+                                EmptyStateDetailCard(
+                                    info = EmptyStateInfo(
+                                        type = EmptyStateType.NO_PROVIDER_CONFIGURED,
+                                        title = "No model provider configured",
+                                        whatIsMissing = "An AI model provider (Mistral, OpenAI, Ollama, or local) is not set up yet.",
+                                        whatWorksLocally = "Local phone tools still work: open apps, file management, shell commands, screen observation (if configured).",
+                                        nextAction = "Configure provider",
+                                        actionTarget = null
+                                    ),
+                                    onAction = onOpenSettings
+                                )
+                            }
+                        }
+                        item {
+                            if (!cap.accessibilityEnabled) {
+                                EmptyStateDetailCard(
+                                    info = EmptyStateInfo(
+                                        type = EmptyStateType.ACCESSIBILITY_DISABLED,
+                                        title = "Accessibility not enabled",
+                                        whatIsMissing = "Phone Agent's AccessibilityService is not running. App control (tap, type, scroll) will not work.",
+                                        whatWorksLocally = "File tools, shell commands, Termux, and SSH still work. Screen observation still works.",
+                                        nextAction = "Open accessibility settings",
+                                        actionTarget = null
+                                    ),
+                                    onAction = onOpenSettings
+                                )
+                            }
+                        }
+                        item {
+                            if (!cap.screenCaptureReady) {
+                                EmptyStateDetailCard(
+                                    info = EmptyStateInfo(
+                                        type = EmptyStateType.SCREEN_CAPTURE_NOT_CONFIGURED,
+                                        title = "Screen capture not configured",
+                                        whatIsMissing = "Screen capture permission (MediaProjection) has not been granted yet.",
+                                        whatWorksLocally = "App control, file tools, shell, Termux, and SSH work. Accessibility-based observation provides limited text info.",
+                                        nextAction = "Configure screen capture",
+                                        actionTarget = null
+                                    ),
+                                    onAction = onOpenSettings
+                                )
+                            }
+                        }
+                        item {
+                            if (cap.sshConfiguredTargets == 0) {
+                                EmptyStateDetailCard(
+                                    info = EmptyStateInfo(
+                                        type = EmptyStateType.NO_SSH_TARGETS,
+                                        title = "No SSH targets configured",
+                                        whatIsMissing = "No SSH servers have been added yet.",
+                                        whatWorksLocally = "File tools, shell, app control, Termux, and PRoot work.",
+                                        nextAction = "Configure SSH",
+                                        actionTarget = null
+                                    ),
+                                    onAction = onOpenSettings
+                                )
+                            }
+                        }
                     }
                 }
                 items(snapshot.events, key = { it.id }) { event ->

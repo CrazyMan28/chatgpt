@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Screen Stream</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-dark.ico" type="image/x-icon" media="(prefers-color-scheme: dark)">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="stylesheet" href="/static/spinner.css">
+    <style>
+        :root {
+            --bg-color: #f4f4f9;
+            --container-bg: #ffffff;
+            --text-color: #333333;
+            --controls-bg: #e9e9e9;
+            --button-bg: #007BFF;
+            --button-hover: #0056b3;
+            --button-disabled: #cccccc;
+            --border-color: #cccccc;
+            --status-error-bg: #f8d7da;
+            --status-error-text: #721c24;
+            --status-success-bg: #d4edda;
+            --status-success-text: #155724;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+        }
+        
+        .dark-mode {
+            --bg-color: #121212;
+            --container-bg: #1e1e1e;
+            --text-color: #f4f4f9;
+            --controls-bg: #2d2d2d;
+            --button-bg: #0056b3;
+            --button-hover: #003d7a;
+            --button-disabled: #444444;
+            --border-color: #555555;
+            --status-error-bg: #491a1d;
+            --status-error-text: #f5c6cb;
+            --status-success-bg: #1a3a2a;
+            --status-success-text: #c3e6cb;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: var(--bg-color);
+            color: var(--text-color);
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: var(--container-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px var(--shadow-color);
+        }
+        h1 {
+            color: var(--text-color);
+        }
+        #video-container {
+            margin: 20px 0;
+            position: relative;
+            min-height: 300px;
+        }
+        #screen-stream {
+            max-width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+        .controls {
+            margin: 15px 0;
+            padding: 10px;
+            background: var(--controls-bg);
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            margin-right: 10px;
+            cursor: pointer;
+            background: var(--button-bg);
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: var(--button-hover);
+        }
+        button:disabled {
+            background: var(--button-disabled);
+            cursor: not-allowed;
+        }
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background: var(--container-bg);
+            color: var(--text-color);
+        }
+        .status {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            display: none;
+        }
+        .error {
+            background: var(--status-error-bg);
+            color: var(--status-error-text);
+        }
+        .success {
+            background: var(--status-success-bg);
+            color: var(--status-success-text);
+        }
+        .loading #screen-stream {
+            opacity: 0.5;
+        }
+        
+        /* Dark mode toggle */
+        .dark-mode-toggle {
+            float: right;
+            padding: 8px 12px;
+            background: var(--controls-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        /* Copy URL button */
+        #copy-url-btn {
+            background: #28a745;
+        }
+        
+        #copy-url-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="dark-mode-toggle" id="darkModeToggle">🌙 Dark Mode</button>
+        <h1>🖥️ Your Screen Stream</h1>
+        <div class="controls">
+            <button id="pause-btn">Pause</button>
+            <button id="play-btn" disabled>Play</button>
+            <button id="copy-url-btn">Copy Stream URL</button>
+            <label for="quality">Quality:</label>
+            <select id="quality">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+            </select>
+        </div>
+        <div id="status" class="status"></div>
+        <div id="video-container">
+            <img id="screen-stream" src="/video_feed" width="100%" onerror="handleStreamError()">
+            <div class="spinner" id="spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        const streamImg = document.getElementById('screen-stream');
+        const pauseBtn = document.getElementById('pause-btn');
+        const playBtn = document.getElementById('play-btn');
+        const qualitySelect = document.getElementById('quality');
+        const statusDiv = document.getElementById('status');
+        const videoContainer = document.getElementById('video-container');
+        const spinner = document.getElementById('spinner');
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        const copyUrlBtn = document.getElementById('copy-url-btn');
+
+        let isPaused = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        let qualityChangeTimeout = null;
+
+        // Toggle dark mode
+        darkModeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const isDarkMode = document.body.classList.contains('dark-mode');
+            darkModeToggle.textContent = isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode';
+        });
+
+        // Check for system dark mode preference
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.body.classList.add('dark-mode');
+            darkModeToggle.textContent = '☀️ Light Mode';
+        }
+
+        function showStatus(message, isError = false) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + (isError ? 'error' : 'success');
+            statusDiv.style.display = 'block';
+            setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
+        }
+
+        function showSpinner() {
+            videoContainer.classList.add('loading');
+        }
+
+        function hideSpinner() {
+            videoContainer.classList.remove('loading');
+        }
+
+        function handleStreamError() {
+            if (reconnectAttempts < maxReconnectAttempts) {
+                showSpinner();
+                reconnectAttempts++;
+                showStatus(`Connection lost. Reconnecting (${reconnectAttempts}/${maxReconnectAttempts})...`, true);
+                setTimeout(() => {
+                    streamImg.src = `/video_feed?t=${new Date().getTime()}`;
+                }, 2000);
+            } else {
+                showStatus('Failed to reconnect. Please refresh the page.', true);
+            }
+        }
+
+        streamImg.addEventListener('load', () => {
+            hideSpinner();
+            reconnectAttempts = 0;
+        });
+
+        pauseBtn.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/api/pause', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'paused') {
+                    isPaused = true;
+                    pauseBtn.disabled = true;
+                    playBtn.disabled = false;
+                    streamImg.style.opacity = '0.5';
+                    showStatus('Stream paused');
+                }
+            } catch (err) {
+                showStatus('Failed to pause stream', true);
+            }
+        });
+
+        playBtn.addEventListener('click', async () => {
+            try {
+                showSpinner();
+                const res = await fetch('/api/play', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'playing') {
+                    isPaused = false;
+                    pauseBtn.disabled = false;
+                    playBtn.disabled = true;
+                    streamImg.style.opacity = '1';
+                    showStatus('Stream playing');
+                }
+            } catch (err) {
+                showStatus('Failed to play stream', true);
+            } finally {
+                hideSpinner();
+            }
+        });
+
+        qualitySelect.addEventListener('change', () => {
+            const quality = qualitySelect.value;
+            if (qualityChangeTimeout) {
+                clearTimeout(qualityChangeTimeout);
+            }
+            qualityChangeTimeout = setTimeout(async () => {
+                try {
+                    showSpinner();
+                    const timestamp = new Date().getTime();
+                    streamImg.src = `/video_feed?quality=${quality}&t=${timestamp}`;
+                    showStatus(`Quality set to ${quality}`);
+                } catch (err) {
+                    showStatus('Failed to update quality', true);
+                } finally {
+                    hideSpinner();
+                }
+            }, 500); // Debounce delay of 500ms
+        });
+
+        // Copy Stream URL to clipboard
+        copyUrlBtn.addEventListener('click', () => {
+            const currentUrl = window.location.href;
+            const streamUrl = `${currentUrl.replace('http://', 'ws://').replace('https://', 'wss://')}video_feed`;
+            navigator.clipboard.writeText(streamUrl).then(() => {
+                showStatus('Stream URL copied to clipboard!');
+            }).catch(err => {
+                showStatus('Failed to copy URL', true);
+            });
+        });
+
+        // Auto-refresh workaround for pause state
+        setInterval(async () => {
+            if (!isPaused) {
+                const timestamp = new Date().getTime();
+                streamImg.src = `/video_feed?t=${timestamp}`;
+            }
+        }, 2000);
+
+        // Register Service Worker for PWA support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/service-worker.js')
+                    .then((registration) => {
+                        console.log('ServiceWorker registration successful:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('ServiceWorker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "@chatgpt-code/tui-pro",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "tsx src/index.tsx",
+    "start": "tsx src/index.tsx"
+  },
+  "dependencies": {
+    "@chatgpt-code/client-sdk": "0.2.0",
+    "@chatgpt-code/runtime-core": "0.2.0",
+    "ink": "^7.0.0",
+    "ink-text-input": "^6.0.0",
+    "react": "^19.2.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}

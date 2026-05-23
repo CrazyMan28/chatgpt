@@ -1,0 +1,17 @@
+{
+  "name": "@chatgpt-code/desktop-control-mcp",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "bin": {
+    "desktop-control-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json"
+  }
+}

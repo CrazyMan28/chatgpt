@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "ignoreDeprecations": "6.0",
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "references": [
+    {
+      "path": "../../packages/client-sdk"
+    },
+    {
+      "path": "../../packages/runtime-core"
+    }
+  ]
+}
+

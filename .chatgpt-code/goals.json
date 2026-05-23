@@ -1,0 +1,47 @@
+{
+  "goals": [
+    {
+      "blockers": [],
+      "createdAt": 1777278592781,
+      "description": "Autonomous repository improvement loop",
+      "estimatedEffort": "medium",
+      "id": "goal-mogxsavh-3125a5",
+      "nextBestAction": "Review the task, then run /plan or execute directly if already approved.",
+      "source": "proactive",
+      "state": "queued",
+      "suggestedMcps": [],
+      "title": "Autonomous repository improvement",
+      "updatedAt": 1777278592781,
+      "whyItMatters": "This was requested or scheduled in the active workspace."
+    },
+    {
+      "blockers": [],
+      "createdAt": 1778129641092,
+      "description": "h",
+      "estimatedEffort": "medium",
+      "id": "goal-mov0h7yc-de8996",
+      "nextBestAction": "Review the task, then run /plan or execute directly if already approved.",
+      "source": "user",
+      "state": "queued",
+      "suggestedMcps": [],
+      "title": "h",
+      "updatedAt": 1778129641092,
+      "whyItMatters": "This was requested or scheduled in the active workspace."
+    },
+    {
+      "blockers": [],
+      "createdAt": 1778513526750,
+      "description": "make me a Minecraft mod",
+      "estimatedEffort": "medium",
+      "id": "goal-mp1d180u-1ca5e8",
+      "nextBestAction": "Review the task, then run /plan or execute directly if already approved.",
+      "source": "user",
+      "state": "queued",
+      "suggestedMcps": [],
+      "title": "make me a Minecraft mod",
+      "updatedAt": 1778513526750,
+      "whyItMatters": "This was requested or scheduled in the active workspace."
+    }
+  ],
+  "version": 1
+}
