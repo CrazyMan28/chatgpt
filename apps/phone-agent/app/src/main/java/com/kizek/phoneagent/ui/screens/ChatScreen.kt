@@ -56,6 +56,7 @@ import com.kizek.phoneagent.ui.components.ErrorMessageCard
 import com.kizek.phoneagent.ui.components.GlassCard
 import com.kizek.phoneagent.ui.components.GlassSurface
 import com.kizek.phoneagent.ui.components.ModelChip
+import com.kizek.phoneagent.ui.components.PromptSuggestionChips
 import com.kizek.phoneagent.ui.components.PhoneUiDensity
 import com.kizek.phoneagent.ui.components.QuestionBottomSheet
 import com.kizek.phoneagent.ui.components.StatusPill
@@ -65,6 +66,16 @@ import com.kizek.phoneagent.ui.components.ToolCallCard
 import com.kizek.phoneagent.ui.components.WorkerChip
 import com.kizek.phoneagent.ui.components.statusToneFor
 import com.kizek.phoneagent.ui.components.visibleReasoningSummary
+
+private val samplePrompts = listOf(
+    "What can you do?",
+    "Look at my screen",
+    "Open YouTube",
+    "Open Chrome and search Minecraft Fabric setup",
+    "Can you write files?",
+    "Check Termux status",
+    "Check SSH targets"
+)
 
 @Composable
 fun ChatScreen(
@@ -90,6 +101,7 @@ fun ChatScreen(
     var input by rememberSaveable { mutableStateOf("") }
     var voiceLine by rememberSaveable { mutableStateOf("") }
     var showWorkerPicker by rememberSaveable { mutableStateOf(false) }
+    var showSuggestions by rememberSaveable { mutableStateOf(false) }
     val currentSession = snapshot.selectedSessionId
     val pendingApprovals = snapshot.approvals
         .filter { it.sessionId == currentSession && it.status == "pending" }
@@ -195,7 +207,13 @@ fun ChatScreen(
                             title = "What should we build?",
                             detail = "Ask for file work, shell commands, phone control, screen understanding, or a larger task routed to laptop/server.",
                             actionLabel = "Open tools",
-                            onAction = onOpenTools
+                            onAction = onOpenTools,
+                            content = {
+                                PromptSuggestionChips(
+                                    prompts = samplePrompts,
+                                    onPromptClick = { prompt -> onSend(prompt) }
+                                )
+                            }
                         )
                     }
                 }
@@ -219,6 +237,18 @@ fun ChatScreen(
                         onApprove = { scope -> onApprove(approval.id, scope) },
                         onReject = { onRejectApproval(approval.id) },
                         onDetails = onDetails
+                    )
+                }
+            }
+
+            AnimatedVisibility(visible = showSuggestions && input.isBlank() && currentSession != null, enter = fadeIn() + slideInVertically(initialOffsetY = { it / 4 })) {
+                GlassCard(title = "Suggestions", subtitle = "Tap one to fill the composer.", icon = "TIP", status = "Ready") {
+                    PromptSuggestionChips(
+                        prompts = samplePrompts,
+                        onPromptClick = { prompt ->
+                            input = prompt
+                            showSuggestions = false
+                        }
                     )
                 }
             }
@@ -251,7 +281,9 @@ fun ChatScreen(
                 onTools = onOpenTools,
                 onAttach = onOpenFiles,
                 onScreenObserve = { draft -> onScreenObserve(draft.trim()) },
-                voiceLine = voiceLine
+                voiceLine = voiceLine,
+                showSuggestions = showSuggestions,
+                onToggleSuggestions = { showSuggestions = !showSuggestions }
             )
         }
     }

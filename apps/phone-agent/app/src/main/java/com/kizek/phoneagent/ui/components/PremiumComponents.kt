@@ -813,6 +813,8 @@ fun ChatInputBar(
     onAttach: () -> Unit,
     onScreenObserve: (String) -> Unit,
     voiceLine: String,
+    showSuggestions: Boolean = false,
+    onToggleSuggestions: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
@@ -915,6 +917,13 @@ fun ChatInputBar(
                     Spacer(Modifier.width(4.dp))
                     Text("Screen")
                 }
+                if (onToggleSuggestions != null) {
+                    OutlinedButton(onClick = onToggleSuggestions, enabled = enabled, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (showSuggestions) "Hide" else "Suggestions")
+                    }
+                }
                 OutlinedButton(onClick = onMic, enabled = enabled, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) {
                     Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
@@ -968,18 +977,39 @@ fun SubsystemStatusCard(
 }
 
 @Composable
+fun PromptSuggestionChips(
+    prompts: List<String>,
+    onPromptClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        prompts.forEach { prompt ->
+            AssistChip(
+                onClick = { onPromptClick(prompt) },
+                label = { Text(prompt, maxLines = 1) }
+            )
+        }
+    }
+}
+
+@Composable
 fun EmptyStateCard(
     title: String,
     detail: String,
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
-    onAction: (() -> Unit)? = null
+    onAction: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit = {}
 ) {
     GlassCard(title = title, subtitle = detail, icon = "AI", status = "Ready", modifier = modifier, actions = {
         if (actionLabel != null && onAction != null) {
             Button(onClick = onAction) { Text(actionLabel) }
         }
     }) {
+        content()
         AnimatedAssistantOrb(state = AssistantVisualState.IDLE, size = 42.dp)
     }
 }
