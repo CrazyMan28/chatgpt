@@ -360,6 +360,7 @@ fun AppRoot(app: PhoneAgentApplication) {
                         "provider-fallback" -> AppScreen.PROVIDER_FALLBACK_SETTINGS
                         "local-model" -> AppScreen.LOCAL_MODEL_SETTINGS
                         "runtime" -> AppScreen.RUNTIME_SETTINGS
+                        "diagnostics" -> AppScreen.DIAGNOSTICS
                         "termux" -> AppScreen.TERMUX_SETTINGS
                         "ssh" -> AppScreen.SSH_SETTINGS
                         "fallback" -> AppScreen.FALLBACK_SETTINGS
